@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from polynexus.core.tga_validation import (
     TGAReplayCase,
@@ -9,6 +10,15 @@ from polynexus.core.tga_validation import (
     default_tga_replay_cases,
     run_tga_replay_suite,
 )
+
+
+def test_replay_case_omitted_expectations_are_immutable_and_independent() -> None:
+    first = TGAReplayCase(case_id="first", x_values=(20.0, 30.0), mass_values=(100.0, 99.0))
+    second = TGAReplayCase(case_id="second", x_values=(20.0, 30.0), mass_values=(100.0, 99.0))
+    assert dict(first.expected) == dict(second.expected) == {}
+    assert first.expected is not second.expected
+    with pytest.raises(TypeError):
+        first.expected["residue"] = 99.0
 
 
 def test_default_tga_replay_suite_covers_normal_and_anomalous_curves() -> None:

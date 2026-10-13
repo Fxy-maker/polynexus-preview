@@ -33,7 +33,7 @@ def _dirty_profile() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         except (TypeError, ValueError):
             continue
         if np.isfinite(q_number) and np.isfinite(intensity_number):
-            if q_number > 0 and intensity_number > 0:
+            if q_number > 0:
                 valid_pairs.append((q_number, intensity_number))
     valid_pairs.sort()
     expected_q = np.asarray([pair[0] for pair in valid_pairs])

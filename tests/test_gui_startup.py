@@ -112,6 +112,7 @@ def test_gui_log_buffer_flushes_many_lines_as_one_bounded_document(qt_app):
         window.flush_pending_log_messages()
 
         assert "line 699" in window._log_panel.toPlainText()
+        assert "line 0\n" not in window._log_panel.toPlainText()
         assert window._log_panel.document().blockCount() <= 500
     finally:
         window.close()

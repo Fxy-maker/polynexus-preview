@@ -68,7 +68,7 @@ def test_analyze_single_propagates_effective_q_min_to_low_q_sensitive_windows(mo
     monkeypatch.setattr(
         saxs_core,
         "bragg_long_period",
-        lambda q_, I_, q_min, q_max, q_anchor=None: (8.0, 0.72, {"snr": 4.2}),
+        lambda q_, I_, q_min, q_max, q_anchor=None, max_anchor_relative_shift=None: (8.0, 0.72, {"snr": 4.2}),
     )
 
     def fake_lorentz(q_, I_, cfg_, q_min=None, q_max=None):

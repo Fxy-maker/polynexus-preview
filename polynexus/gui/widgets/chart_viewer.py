@@ -994,6 +994,7 @@ class ChartGallery(QWidget):
         self._selected_batch_ids = set()
         self._gallery_max_columns = 3
         self._gallery_min_card_width = 360
+        self._gallery_columns = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -1001,6 +1002,7 @@ class ChartGallery(QWidget):
 
         # Toolbar
         self._toolbar_widget = QWidget(self)
+        self._toolbar_widget.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
         self._toolbar_widget.setObjectName("gallery_toolbar")
         self._toolbar_widget.setAttribute(Qt.WA_StyledBackground, True)
         toolbar = QHBoxLayout(self._toolbar_widget)
@@ -1081,12 +1083,22 @@ class ChartGallery(QWidget):
         self._btn_clear.clicked.connect(self.clear)
         toolbar.addWidget(self._btn_clear)
         self._sync_selection_actions()
-        layout.addWidget(self._toolbar_widget)
+        toolbar_scroll = QScrollArea(self)
+        toolbar_scroll.setObjectName("gallery_toolbar_scroll")
+        toolbar_scroll.setFrameShape(QScrollArea.NoFrame)
+        toolbar_scroll.setWidgetResizable(False)
+        toolbar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        toolbar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        toolbar_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        toolbar_scroll.setWidget(self._toolbar_widget)
+        toolbar_scroll.setFixedHeight(toolbar.sizeHint().height() + 22)
+        layout.addWidget(toolbar_scroll)
 
         # Scroll area for thumbnails
         self._scroll = QScrollArea()
         self._scroll.setObjectName("chart_gallery_scroll")
         self._scroll.setWidgetResizable(True)
+        self._scroll.viewport().installEventFilter(self)
         self._scroll.setStyleSheet("background: transparent; border: none;")
 
         self._grid = QWidget()
@@ -1205,7 +1217,8 @@ class ChartGallery(QWidget):
             self.select_figure(previous_selected_figure_id, emit=False)
 
     def _gallery_column_count(self) -> int:
-        viewport_width = max(1, self._scroll.viewport().width())
+        margins = self._grid_layout.contentsMargins()
+        viewport_width = max(1, self._scroll.viewport().width() - margins.left() - margins.right())
         slot_width = self._gallery_min_card_width + 8
         return max(
             1,
@@ -1215,12 +1228,16 @@ class ChartGallery(QWidget):
     def _reflow_thumbnail_rows(self) -> None:
         if not self._thumbnails:
             return
+        columns = self._gallery_column_count()
+        # Detach reusable cards before deleting their previous row containers.
+        for thumb in self._thumbnails:
+            thumb.setParent(self._grid)
         while self._grid_layout.count() > 1:
             item = self._grid_layout.takeAt(0)
             if item.widget() is not None:
                 item.widget().deleteLater()
 
-        columns = self._gallery_column_count()
+        self._gallery_columns = columns
         row_widget = None
         row_layout = None
         for index, thumb in enumerate(self._thumbnails):
@@ -1235,6 +1252,7 @@ class ChartGallery(QWidget):
                     row_widget,
                 )
             row_layout.addWidget(thumb, 1)
+            thumb.show()
         if row_layout is not None:
             remainder = len(self._thumbnails) % columns
             if remainder:
@@ -1243,6 +1261,12 @@ class ChartGallery(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._reflow_thumbnail_rows()
+
+    def eventFilter(self, watched, event):
+        if watched is self._scroll.viewport() and event.type() == QEvent.Resize:
+            if self._gallery_columns != self._gallery_column_count():
+                self._reflow_thumbnail_rows()
+        return super().eventFilter(watched, event)
 
     def current_file(self):
         return self._selected_path

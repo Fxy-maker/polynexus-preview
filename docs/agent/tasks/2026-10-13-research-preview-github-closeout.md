@@ -60,7 +60,7 @@ integration verification.
 - [x] Public documentation describes actual diagnostic routes and limits.
 - [x] Existing GitHub CI triggers on the public preview base branch.
 - [x] Cumulative full/boundary verification outcomes are recorded honestly.
-- [ ] PR links the task and verification evidence; architecture/scientific
+- [x] PR links the task and verification evidence; architecture/scientific
   human review required by AGENTS.md remains explicit before merge.
 - [x] Original workspace personal and temporary files remain untouched.
 
@@ -93,3 +93,11 @@ The PR will be a draft. Human architecture/scientific review and the decision
 on the existing failing baseline remain merge blockers. No numerical model
 was changed to conceal those failures. Details:
 `docs/acceptance/2026-10-13-research-preview-github-closeout.md`.
+
+Follow-up repair completed on 2026-10-13: public draft PR #1 exists, all 38
+failing nodes pass, and final local full/type/boundary verification passes
+4995 tests with 50 skips and no failures. The historical results above remain
+investigation evidence. Current review needs and repair evidence are in
+`docs/acceptance/2026-10-13-preview-human-review.md` and
+`docs/acceptance/2026-10-13-preview-failure-repair.md`; human review still
+precedes merge.

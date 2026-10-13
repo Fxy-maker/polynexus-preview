@@ -252,6 +252,7 @@ def test_partial_detector_figure_reaches_ready_manifest_and_export(
     manifest = FigurePipeline().run(
         output_root=tmp_path,
         run_id=f"saxs-partial-{mode}",
+        profile_id="paper_complete",
         technique="saxs",
         definitions=(definition,),
     )
@@ -294,6 +295,7 @@ def test_partial_detector_figure_is_reactive_v2_ready_and_publishable(
     run_id = f"saxs-partial-v2-{mode}"
     manifest = FigurePipeline().run(
         output_root=tmp_path,
+        profile_id="paper_complete",
         run_id=run_id,
         technique="saxs",
         definitions=(definition,),

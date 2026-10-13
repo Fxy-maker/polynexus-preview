@@ -9,7 +9,7 @@ until the required experimental evidence and a reviewed model exist.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 import re
 from types import MappingProxyType
@@ -92,7 +92,7 @@ class TGAReplayCase:
     axis_unit: str = "°C"
     signal_unit: str = "%"
     config: TGAProcessingConfig = TGAProcessingConfig()
-    expected: Mapping[str, Any] = MappingProxyType({})
+    expected: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
     case_hash: str = ""
     schema_version: str = "1"
 

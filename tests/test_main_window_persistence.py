@@ -11,7 +11,7 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
-from PySide6.QtGui import QColor, QPixmap
+from PySide6.QtGui import QColor, QPixmap, QHelpEvent
 from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QMessageBox, QSpinBox
 
 import numpy as np
@@ -37,6 +37,27 @@ def _log_text(window):
     """Flush the buffered GUI log before asserting visible text."""
     window.flush_pending_log_messages()
     return window._log_panel.toPlainText()
+
+
+def _hover_history_row(window, row=0):
+    viewport = window._history_table.viewport()
+    position = window._history_table.visualItemRect(window._history_table.item(row, 0)).center()
+    event = QHelpEvent(QEvent.ToolTip, position, viewport.mapToGlobal(position))
+    window.eventFilter(viewport, event)
+
+
+def test_buffered_log_preserves_literal_text_and_append_order():
+    window = MainWindow()
+    window.log("a -> b <untrusted> & x")
+    window.flush_pending_log_messages()
+    cursor = window._log_panel.textCursor()
+    cursor.setPosition(0)
+    window._log_panel.setTextCursor(cursor)
+    window.log("second")
+    text = _log_text(window)
+    assert "a -> b <untrusted> & x" in text
+    assert text.index("a -> b") < text.index("second")
+    window.deleteLater()
 
 
 @pytest.fixture(autouse=True)
@@ -2972,7 +2993,15 @@ def test_analysis_worker_exception_message_uses_translation(tmp_path):
             def run_pipeline(self, filepath, output_dir, skip_to=None):
                 raise RuntimeError("boom")
 
-        worker = AnalysisWorker("saxs", str(data_file), str(tmp_path), engine=BrokenEngine())
+        class BrokenService:
+            def __init__(self, factory):
+                pass
+
+            def run_direct(self, **kwargs):
+                raise RuntimeError("boom")
+
+        worker = AnalysisWorker("saxs", str(data_file), str(tmp_path), engine=BrokenEngine(),
+                                compute_service_factory=BrokenService)
         captured = []
         worker.error_msg.connect(captured.append)
         worker.run()
@@ -6443,9 +6472,9 @@ def test_default_workspace_metric_tech_matches_default_selected_technique():
         set_language("en")
         window = MainWindow()
 
-        assert window._workspace_title.text() == "SAXS Analysis"
-        assert window._workflow_metric_tech.text() == "SAXS"
-        assert window._status_tech_label.text() == " SAXS "
+        assert window._workspace_title.text() == "Quick Analysis"
+        assert window._workflow_metric_tech.text() == "Quick analysis"
+        assert window._status_tech_label.text() == " Quick analysis "
         assert window._workflow_task_label.text() == "Current Task"
         assert window._workflow_task_title.text() == "Analysis workspace with input"
         assert "Waiting for input" in window._workflow_task_detail.text()
@@ -6498,8 +6527,8 @@ def test_workflow_task_card_shows_controlled_optimization_state(tmp_path):
         window._ai_tuning_active = True
         window._update_workflow_task_card()
 
-        assert window._workflow_task_title.text() == "Controlled optimization in progress"
-        assert "Controlled optimization" in window._workflow_task_detail.text()
+        assert window._workflow_task_title.text() == "AI parameter tuning in progress"
+        assert "AI parameter tuning" in window._workflow_task_detail.text()
         assert "Static SAXS" in window._workflow_task_detail.text()
         assert "single.dat" in window._workflow_task_detail.text()
 
@@ -6981,6 +7010,7 @@ def test_history_table_shows_metric_summary_in_tooltips(tmp_path):
 
     window._refresh_history()
 
+    _hover_history_row(window)
     tooltip_time = window._history_table.item(0, 0).toolTip()
     tooltip_r2 = window._history_table.item(0, 3).toolTip()
     assert tooltip_time == "lc_nm=5.8 | Xc_pct=0.35 | L_nm=12.0 | extra_tag=A"
@@ -7045,6 +7075,7 @@ def test_history_table_metric_summary_ignores_validation_fields(tmp_path):
 
     window._refresh_history()
 
+    _hover_history_row(window)
     tooltip_time = window._history_table.item(0, 0).toolTip()
     assert tooltip_time == "lc_nm=5.8 | Xc_pct=0.35 | L_nm=12.0 | extra_tag=A"
     assert "validation_summary" not in tooltip_time.lower()
@@ -7101,8 +7132,9 @@ def test_waxs_history_tooltip_surfaces_core_and_support_scores(tmp_path):
     )
 
     window._refresh_history()
-    tooltip = window._history_table.item(0, 0).toolTip()
 
+    _hover_history_row(window)
+    tooltip = window._history_table.item(0, 0).toolTip()
     assert "n_peaks=2" in tooltip
     assert "Xc_pct=69.6" in tooltip
     assert "D_Scherrer_nm=8.3" in tooltip
@@ -7166,8 +7198,9 @@ def test_waxs_temperature_history_tooltip_surfaces_sequence_scores(tmp_path):
     )
 
     window._refresh_history()
-    tooltip = window._history_table.item(0, 0).toolTip()
 
+    _hover_history_row(window)
+    tooltip = window._history_table.item(0, 0).toolTip()
     assert "temperature_axis_confidence=0.94" in tooltip
     assert "peak_family_continuity_score=0.83" in tooltip
     assert "transition_support_score=0.68" in tooltip
@@ -8286,6 +8319,7 @@ def test_history_table_formats_status_for_display(tmp_path):
         db.update_analysis_status(run_id, "pending")
 
         window._refresh_history()
+        _hover_history_row(window)
 
         assert window._history_table.item(0, 4).text() == "Pending | Recommended-parameter rerun"
         assert window._history_table.item(0, 4).toolTip().startswith("pending")
@@ -8357,6 +8391,7 @@ def test_history_table_surfaces_saxs_lc_state_in_completed_rows(tmp_path):
 
         window._refresh_history()
 
+        _hover_history_row(window)
         status_text = window._history_table.item(0, 4).text()
         status_tip = window._history_table.item(0, 4).toolTip()
         metrics_tip = window._history_table.item(0, 0).toolTip()
@@ -8504,6 +8539,10 @@ def test_selected_history_header_hydrates_only_selected_record(tmp_path, monkeyp
     assert window._history_cache[0] == selected
     other = next(record for record in window._history_cache if record["id"] == other_id)
     assert "parameters" not in other
+    _hover_history_row(window)
+    _hover_history_row(window)
+    assert calls == [selected_id]
+    assert window._history_table.item(0, 3).text() == f"{selected['results_summary']['r2']:.4f}"
     assert "results_summary" not in other
     assert "analysis_evidence" not in other
 

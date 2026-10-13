@@ -646,7 +646,7 @@ def test_rescue_and_confirmation_reject_orientation_advisory_payload() -> None:
         validate_saxs_ai_intent({"orientation_advisory_report": {}})
     with pytest.raises(ValueError, match="orientation advisory"):
         validate_saxs_confirmation_report(
-            {"orientation_advisory_report": {}},
+            {"mode": "strain", "orientation_advisory_report": {}},
             current_config={},
             mode="strain",
         )

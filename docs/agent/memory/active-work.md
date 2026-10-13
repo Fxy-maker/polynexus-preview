@@ -5,18 +5,23 @@
 - Prepared the 50 completed commits after public `f63b3586` in an isolated
   managed checkout, with refreshed diagnostic capability guidance and CI
   triggers for `research-preview-v0.1`.
-- Full integration check: 4948 passed, 49 failed, 45 skipped. The public
-  baseline reproduced 44 of the 48 existing failing cases. After bounded
-  closeout repairs, the failure selection has 38 failures; every remaining
-  failure also reproduces on that baseline. Do not claim a green full suite.
-- Completed-module regression tests pass 438 with 3 skips; focused closeout
-  contract/NMR tests pass 62 with 4 skips. The final structured gate without
-  the known failing full suite passes quality, preprocessing, and boundary.
-- A draft PR is the delivery boundary. Human architecture/scientific review
-  and a decision on the existing GUI/figure/IR/SAXS/DSC failures are required
-  before merge. ReferenceEvidence remains proposed and unimplemented.
+- Follow-up repair closes all 38 failing nodes (38/38 replay), corrects
+  canonical/export/signed-input fixtures, repairs SAXS lost-feature fallback,
+  GUI row hydration/reflow/logging/selection, and Python 3.11 TGA defaults.
+- Final local structured integration verification passes 4995 with 50 skips,
+  quality 313, preprocessing 157, cumulative Ruff/compile, whitespace,
+  standalone Pyright (0 errors/warnings), and boundary audit. One earlier
+  transient Qt binding failure is documented; editor test teardown now flushes
+  deferred deletion and Python callback cycles before the next constructor.
+- Draft PR #1 is the delivery boundary. Human architecture/scientific review
+  is still required before merge; actionable recommendations are in
+  `docs/acceptance/2026-10-13-preview-human-review.md`. Existing inferred DSC
+  preparation roles, hostile-code OS isolation, independent validation and
+  capability promotion remain open. ReferenceEvidence remains proposed.
 - Task: `docs/agent/tasks/2026-10-13-research-preview-github-closeout.md`;
   evidence: `docs/acceptance/2026-10-13-research-preview-github-closeout.md`.
+  Follow-up: `docs/agent/tasks/2026-10-13-preview-failure-repair.md` and its
+  matching acceptance record. GitHub CI is tracked by the existing PR checks.
 
 ## Cross-module validation suite aggregation — implementation complete, review required (2026-09-14)
 

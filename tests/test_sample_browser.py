@@ -7,7 +7,6 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton
-from PySide6.QtWidgets import QDialogButtonBox
 
 import pytest
 
@@ -847,7 +846,7 @@ def test_sample_browser_main_table_copy_shortcut_copies_selected_row(tmp_path):
         browser.set_db(db)
         assert browser.select_sample(first_id)
 
-        browser._table.selectRow(0)
+        browser._table.selectRow(next(i for i, sample in enumerate(browser._samples) if sample["id"] == first_id))
         app.processEvents()
         browser._table_copy_shortcut.activated.emit()
 
@@ -1224,7 +1223,7 @@ def test_batch_details_dialog_run_copy_shortcut_uses_selected_row(tmp_path, monk
     dialog._runs_table.selectRow(1)
     dialog._copy_runs_shortcut.activated.emit()
 
-    assert app.clipboard().text().splitlines() == [str(output_b)]
+    assert app.clipboard().text().splitlines() == [snapshot["runs"][1]["output_dir"]]
 
     dialog.deleteLater()
     db.close()

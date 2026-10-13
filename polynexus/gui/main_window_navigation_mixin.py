@@ -288,6 +288,6 @@ class MainWindowNavigationMixin:
         self._btn_run.setEnabled(True)
         self._set_nav_visual_state(submodule_id, technique)
         self._update_workspace_context()
-        self.log(tr("LOG_SUBMODULE_SELECTED", submodule_id))
+        self.log(tr("LOG_SUBMODULE_SELECTED", self._history_submodule_text(submodule_id)))
         self._update_config_panel()
         self._refresh_config_preset_controls()

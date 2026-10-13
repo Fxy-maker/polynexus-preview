@@ -82,6 +82,12 @@ the completed checkout and the unchanged public baseline.
 
 ## Remaining baseline failures
 
+Follow-up on 2026-10-13: all 38 nodes below now pass. The final full gate
+passes `4995 passed, 50 skipped` with no failures. The table is retained as
+the original investigation inventory; it is superseded by
+[failure-repair evidence](2026-10-13-preview-failure-repair.md) and
+[concrete human-review notes](2026-10-13-preview-human-review.md).
+
 These failures are not silently skipped or reclassified as passing. Their
 scientific and GUI fixes require separately scoped tasks; the integration PR
 remains a draft pending review and a decision on the existing baseline.

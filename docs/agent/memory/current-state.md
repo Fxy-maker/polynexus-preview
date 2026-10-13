@@ -6,10 +6,14 @@ The 50 completed commits after public `f63b3586` are prepared for a GitHub
 draft PR into `Fxy-maker/polynexus-preview/research-preview-v0.1`. Closeout
 repairs update public capability statements, preview CI triggers, changed-file
 engine style, missing-data test handling, and shared-contract regressions.
-No scientific algorithm or capability maturity was promoted. Full integration
-verification is not green: 38 remaining failures in the repaired failure
-selection all reproduce on the published baseline. See the closeout task and
-acceptance record dated 2026-10-13; merge remains review/decision blocked.
+The follow-up repair resolves the 38 baseline failures, fixes the Python 3.11
+TGA replay default, and repairs GUI/SAXS tracking behavior without promoting
+capability maturity. Final local integration verification is green: 4995
+passed, 50 skipped, no failures; cumulative type/style/boundary gates pass.
+The public draft PR #1 remains human-review blocked. Concrete DSC role, SAXS
+tracking, diagnostic-model/SEC, worker-isolation and shared-evidence review
+notes are in `docs/acceptance/2026-10-13-preview-human-review.md`; repair
+evidence is in the acceptance/task records named `2026-10-13-preview-failure-repair`.
 
 ## Advanced diagnostic model suite — 2026-09-13
 

@@ -4,7 +4,7 @@ from collections.abc import Mapping
 import os
 from datetime import datetime
 from pathlib import Path
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QEvent
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -396,6 +396,7 @@ class MainWindowHistoryMixin:
         layout.addWidget(toolbar_scroll)
 
         self._history_table = QTableWidget()
+        self._history_table.viewport().installEventFilter(self)
         self._history_table.setColumnCount(8)
         self._history_table.setHorizontalHeaderLabels(
             [
@@ -667,8 +668,45 @@ class MainWindowHistoryMixin:
         loaded = self._ensure_sample_db().get_analysis_run(record.get("id"))
         if loaded is not None:
             cache[row] = loaded
+            self._render_history_detail_row(row, loaded)
             return loaded
         return record
+
+    def _render_history_detail_row(self, row, record):
+        """Refresh a hydrated row without decoding the rest of History."""
+        detail = build_history_table_rows(
+            [record],
+            metrics_tooltip_fn=self._history_metrics_tooltip,
+            technique_text_fn=self._history_technique_text,
+            submodule_text_fn=self._history_submodule_text,
+            status_text_fn=self._history_status_text,
+            scientific_review_text_fn=lambda run: self._scientific_review_text(run),
+            validation_summary_fn=self._history_validation_summary,
+            confirmation_label_fn=self._history_confirmation_label,
+            has_source_fn=history_has_available_source,
+        )[0]
+        for column, value in enumerate(detail.values):
+            item = self._history_table.item(row, column)
+            if item is not None:
+                item.setText(value)
+                item.setToolTip(detail.tooltips[column])
+
+    def _hydrate_history_row(self, row):
+        cache = getattr(self, "_history_cache", [])
+        if not 0 <= row < len(cache):
+            return
+        record = cache[row]
+        if "parameters" not in record:
+            loaded = self._ensure_sample_db().get_analysis_run(record.get("id"))
+            if loaded is not None:
+                cache[row] = loaded
+                self._render_history_detail_row(row, loaded)
+
+    def eventFilter(self, watched, event):
+        table = getattr(self, "_history_table", None)
+        if table is not None and watched is table.viewport() and event.type() == QEvent.ToolTip:
+            self._hydrate_history_row(table.indexAt(event.pos()).row())
+        return super().eventFilter(watched, event)
 
 
     def _update_history_action_state(self):

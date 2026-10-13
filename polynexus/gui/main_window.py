@@ -3121,7 +3121,8 @@ class MainWindow(
             return
         lines = self._pending_log_lines
         self._pending_log_lines = []
-        self._log_panel.append("\n".join(lines))
+        # Explicit paragraphs force rich text and retain the per-line block cap.
+        self._log_panel.append("<p>" + "</p><p>".join(lines) + "</p>")
         self._log_panel.verticalScrollBar().setValue(
             self._log_panel.verticalScrollBar().maximum()
         )
