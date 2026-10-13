@@ -30,6 +30,7 @@ rag/chroma_db/
 test_output/
 results/
 tests/eval/reports/
+tests/_tmp_phase3/
 
 # Logs and generated reports
 *.log

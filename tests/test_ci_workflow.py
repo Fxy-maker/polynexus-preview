@@ -9,16 +9,16 @@ def _workflow_text() -> str:
     return WORKFLOW_PATH.read_text(encoding="utf-8")
 
 
-def test_windows_ci_targets_main_with_read_only_permissions():
+def test_windows_ci_targets_main_and_public_preview_with_read_only_permissions():
     workflow = _workflow_text()
 
     assert workflow.startswith("name: PolyNexus CI\n")
     assert (
         "on:\n"
         "  pull_request:\n"
-        "    branches: [main]\n"
+        "    branches: [main, research-preview-v0.1]\n"
         "  push:\n"
-        "    branches: [main]\n"
+        "    branches: [main, research-preview-v0.1]\n"
     ) in workflow
     assert "permissions:\n  contents: read\n" in workflow
     assert "cancel-in-progress: true" in workflow

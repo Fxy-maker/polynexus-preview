@@ -30,35 +30,51 @@ by workflow and input form. TGA descriptive curve summaries are available for su
 exports. Normalized mass, DTG, specified-coordinate residue, and material-
 neutral event candidates are emitted as diagnostic derived results; their
 formal capability promotion remains pending independent replay, uncertainty
-work, and scientific review, while kinetics is unsupported. DMA preserves
+work, and scientific review. An explicit canonical analysis spec can compute
+diagnostic Kissinger and Ozawa-Flynn-Wall multi-rate kinetics; formal kinetics
+capability promotion remains unsupported. DMA preserves
 unambiguously labelled table signals and can derive unit-compatible loss
 tangent series plus material-neutral temperature-response peak candidates.
 Those derived outputs remain diagnostic pending independent replay,
-uncertainty work, and scientific review; master curves, shift factors, and Tg
-interpretation remain unsupported.
+uncertainty work, and scientific review. Explicit horizontal shifts or
+deterministic overlap fitting can produce diagnostic master curves and shift
+factors; formal TTS promotion and Tg interpretation remain unsupported.
 Rheology preserves unambiguous rheometer table signals and derives only
 dimensionally compatible steady-flow and oscillatory identities with explicit
-unit conversion and point-level unavailable masks. The formal viscosity,
+unit conversion and point-level unavailable masks. Explicit analysis specs
+also compute diagnostic Bingham/Herschel-Bulkley yield fits, strain-sweep
+LVE/crossover candidates, thixotropy integrals, Cox-Merz comparisons,
+creep/relaxation fits, and declared TTS/master curves. The formal viscosity,
 moduli, yield-stress, thixotropy, creep/relaxation, and TTS capabilities remain
 unsupported pending independent replay, uncertainty work, and scientific
 review. SEC/GPC has an executable, sample-neutral chromatogram foundation:
 retention/elution coordinates and explicitly labelled RI, UV, MALS/RALS/LALS,
 viscometer/pressure, concentration, vendor molar-mass, and distribution columns
-are preserved as separate measurements. Only a recorded-response peak and
-baseline-uncorrected raw integral are derived; `Mn`, `Mw`, `Mz`, and dispersity
-remain unavailable without a reviewed calibration/distribution contract.
+are preserved as separate measurements. A recorded-response peak and
+baseline-uncorrected raw integral are derived. An explicit calibration spec
+binds standard coordinates/molar masses and mass/number response semantics;
+within its range the Core can derive diagnostic `Mn`, `Mw`, `Mz`, dispersity,
+and distribution arrays. Without that spec, moments remain unavailable. Shared
+figures and exports retain metric, unit, method, and calibration bindings.
+Calibration validity and formal capability promotion remain open.
 Mechanics provides a sample-neutral table-curve foundation that preserves
 explicit test axes and response channels and derives recorded response peaks
 and raw trapezoid integrals. A canonical payload may explicitly bind test mode,
 geometry, units, fit window, yield offset, and endpoint semantics; with that
 contract the Core can compute a diagnostic stress-strain modulus, offset-yield
-candidate, and last-valid stress-strain toughness value. These model outputs
+candidate, and last-valid stress-strain toughness value, plus cycle envelopes,
+fatigue histories, creep integrals, and fracture-work candidates. These outputs
 remain unpromoted pending independent replay, uncertainty work, and scientific
 review. Explicit measurement standard deviations now flow into a first-order
 diagnostic uncertainty projection, and serialized replay cases can compare
 outputs with an external expected-value fixture. These are validation aids, not
-metrological claims or automatic promotion gates. Fatigue, fracture, and creep
-remain unavailable.
+metrological claims or automatic promotion gates. Fatigue/fracture descriptors
+do not establish universal fatigue-life or fracture-toughness predictions.
+
+The shared Validation Suite aggregates deterministic public replay, smoke-only
+output, and unavailable inputs. Repeatability proves reproducibility of the
+recorded route; it does not establish scientific accuracy or supply reference
+values for unknown materials. Public raw archives remain external to Git.
 
 ## Result and evidence boundary
 

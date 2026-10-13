@@ -430,16 +430,28 @@ def test_package_keeps_historical_run_without_compute_run_readable(tmp_path: Pat
     assert package.path.is_dir()
 
 
-def test_package_rejects_compute_run_artifact_not_matching_recipe(tmp_path: Path) -> None:
+@pytest.mark.parametrize("with_inspection", (True, False))
+def test_package_rejects_compute_run_artifact_not_matching_recipe(
+    tmp_path: Path, with_inspection: bool
+) -> None:
     run = _run_dsc_request(tmp_path)
+    def tamper_artifact(analysis):
+        compute_run = analysis["steps"][0]["compute_run"]
+        if not with_inspection:
+            compute_run.pop("input_inspection", None)
+        compute_run["artifact"]["sha256"] = "not-the-recipe-hash"
+
     run = _rewrite_run_analysis(
         run,
-        lambda analysis: analysis["steps"][0]["compute_run"]["artifact"].update(
-            {"sha256": "not-the-recipe-hash"}
-        ),
+        tamper_artifact,
     )
 
-    with pytest.raises(ValueError, match="run manifest compute_run artifact does not match recipe"):
+    expected = (
+        "compute_run_input_inspection_mismatch"
+        if with_inspection
+        else "run manifest compute_run artifact does not match recipe"
+    )
+    with pytest.raises(ValueError, match=expected):
         ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
 
 

@@ -1,5 +1,23 @@
 # Active Work
 
+## Public-preview GitHub closeout — prepared, merge blocked (2026-10-13)
+
+- Prepared the 50 completed commits after public `f63b3586` in an isolated
+  managed checkout, with refreshed diagnostic capability guidance and CI
+  triggers for `research-preview-v0.1`.
+- Full integration check: 4948 passed, 49 failed, 45 skipped. The public
+  baseline reproduced 44 of the 48 existing failing cases. After bounded
+  closeout repairs, the failure selection has 38 failures; every remaining
+  failure also reproduces on that baseline. Do not claim a green full suite.
+- Completed-module regression tests pass 438 with 3 skips; focused closeout
+  contract/NMR tests pass 62 with 4 skips. The final structured gate without
+  the known failing full suite passes quality, preprocessing, and boundary.
+- A draft PR is the delivery boundary. Human architecture/scientific review
+  and a decision on the existing GUI/figure/IR/SAXS/DSC failures are required
+  before merge. ReferenceEvidence remains proposed and unimplemented.
+- Task: `docs/agent/tasks/2026-10-13-research-preview-github-closeout.md`;
+  evidence: `docs/acceptance/2026-10-13-research-preview-github-closeout.md`.
+
 ## Cross-module validation suite aggregation — implementation complete, review required (2026-09-14)
 
 - Added `ValidationSuiteEntry`/`ValidationSuiteReport` and a safe

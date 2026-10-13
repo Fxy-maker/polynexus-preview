@@ -245,5 +245,5 @@ def test_format_inspection_cli_emits_shared_contract(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["plugin_id"] == "netzsch.ta.v1"
     assert payload["status"] == "needs_reader"
-    assert payload["reason_codes"] == ["format_reader_missing"]
+    assert payload["reason_codes"] == ["format_signature_unrecognized"]
     assert payload["inspection_id"] == inspect_format(source, technique="tga").inspection_id

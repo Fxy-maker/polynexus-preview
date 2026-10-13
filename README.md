@@ -60,8 +60,11 @@ preserves unambiguous retention/elution coordinates, RI, UV, MALS/RALS/LALS,
 viscometer/pressure, concentration, vendor molar-mass, and explicit
 distribution columns. It derives only a recorded-response peak coordinate and
 a baseline-uncorrected raw integral; molecular-weight moments remain explicitly
-unavailable until calibration and distribution semantics are supplied. These
-outputs are diagnostic and do not infer universal calibration or chemistry.
+unavailable until calibration and distribution semantics are supplied. An
+explicit calibration spec can then derive diagnostic Mn/Mw/Mz/dispersity and
+distribution arrays within the calibration range, with shared chromatogram,
+distribution, calibration, and metric-summary figures. These outputs retain
+standard provenance and do not infer universal calibration or chemistry.
 Mechanics now provides a sample-neutral table-curve foundation: it preserves
 explicit time, displacement, strain, deflection, cycle, stress, force/load,
 energy, and modulus channels and derives recorded response peaks and raw
@@ -318,10 +321,10 @@ the output needs inspection:
 
 ```powershell
 $env:POLYNEXUS_TEST_RETENTION="review"
-pytest tests/test_gui_route.py
+pytest tests/test_main_window_workers.py
 
 $env:POLYNEXUS_TEST_RETENTION="evidence"
-pytest tests/test_release_acceptance.py
+pytest tests/test_public_validation.py
 ```
 
 `review` retains output for 7 days; `evidence` retains it permanently. Existing

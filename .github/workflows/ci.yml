@@ -2,9 +2,9 @@ name: PolyNexus CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, research-preview-v0.1]
   push:
-    branches: [main]
+    branches: [main, research-preview-v0.1]
 
 permissions:
   contents: read

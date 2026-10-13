@@ -1,5 +1,16 @@
 ---
 
+## Public-preview integration checkpoint — 2026-10-13
+
+The 50 completed commits after public `f63b3586` are prepared for a GitHub
+draft PR into `Fxy-maker/polynexus-preview/research-preview-v0.1`. Closeout
+repairs update public capability statements, preview CI triggers, changed-file
+engine style, missing-data test handling, and shared-contract regressions.
+No scientific algorithm or capability maturity was promoted. Full integration
+verification is not green: 38 remaining failures in the repaired failure
+selection all reproduce on the published baseline. See the closeout task and
+acceptance record dated 2026-10-13; merge remains review/decision blocked.
+
 ## Advanced diagnostic model suite — 2026-09-13
 
 TGA multi-rate Kissinger/OFW kinetics, DMA horizontal shifting and master

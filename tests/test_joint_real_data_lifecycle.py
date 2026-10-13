@@ -75,11 +75,11 @@ def _joint_summary(technique: str, result: AnalysisResult) -> dict[str, float]:
 
 def test_real_engine_runs_persist_into_joint_report_and_manifest(tmp_path: Path) -> None:
     sources = _real_sources()
-    assert sources[1][2].name != "8-000-s_0_00000_with_mask.edf"
-    assert "普通小角" in str(sources[1][2])
     missing = [str(path) for _, _, path in sources if not path.exists()]
     if missing:
         pytest.skip(f"real Joint fixtures unavailable: {missing}")
+    assert sources[1][2].name != "8-000-s_0_00000_with_mask.edf"
+    assert "普通小角" in str(sources[1][2])
 
     db = SampleDB(tmp_path / "samples.db")
     sample_id = db.create_sample("PA6 real Joint acceptance")
