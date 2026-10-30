@@ -17,6 +17,9 @@
   collection on the absent optional MCP dependency. CI/development full-suite
   installs now request `dev,automation`; workflow/MCP tests pass 6, with
   final-head Windows/Python 3.11 CI pending.
+- The subsequent clean install selected MCP 2.x, which removed the server's
+  FastMCP 1.x import. The automation extra now pins `mcp>=1.0,<2`; focused
+  workflow/MCP coverage passes 7 and final-head CI is pending.
 - Draft PR #1 is the delivery boundary. Human architecture/scientific review
   is still required before merge; actionable recommendations are in
   `docs/acceptance/2026-10-13-preview-human-review.md`. Existing inferred DSC

@@ -72,6 +72,8 @@ in `docs/acceptance/2026-10-13-preview-failure-repair.md`.
 Concrete human review: `docs/acceptance/2026-10-13-preview-human-review.md`.
 Clean CI additionally exposed the missing optional MCP test dependency:
 the complete test install now requests both `dev` and `automation` extras.
-Final-head CI remains the acceptance check for the clean environment.
+The clean install then exposed an MCP 2.x API mismatch; the automation extra
+now pins the MCP 1.x API range used by `FastMCP`. Final-head CI remains the
+acceptance check for the clean environment.
 Checkpoint only the changed repair source/tests and these documentation/memory
 paths; update existing public PR #1 without merging or touching private main.

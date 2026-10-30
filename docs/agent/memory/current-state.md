@@ -13,6 +13,9 @@ passed, 50 skipped, no failures; cumulative type/style/boundary gates pass.
 Clean GitHub CI subsequently exposed a missing MCP dependency at full-suite
 collection. CI/development full-suite installs now request `dev,automation`;
 workflow and MCP regressions pass 6. Final-head Windows/Python 3.11 CI is pending.
+The next clean run selected MCP 2.x, incompatible with this server's FastMCP
+1.x API; the automation extra now pins `mcp>=1.0,<2`, with 7 focused tests
+passing. Final-head Windows/Python 3.11 CI is pending.
 The public draft PR #1 remains human-review blocked. Concrete DSC role, SAXS
 tracking, diagnostic-model/SEC, worker-isolation and shared-evidence review
 notes are in `docs/acceptance/2026-10-13-preview-human-review.md`; repair

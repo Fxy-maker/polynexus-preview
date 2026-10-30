@@ -2,11 +2,17 @@ from pathlib import Path
 
 
 WORKFLOW_PATH = Path(__file__).parents[1] / ".github" / "workflows" / "ci.yml"
+PYPROJECT_PATH = Path(__file__).parents[1] / "pyproject.toml"
 
 
 def _workflow_text() -> str:
     assert WORKFLOW_PATH.is_file(), f"missing CI workflow: {WORKFLOW_PATH}"
     return WORKFLOW_PATH.read_text(encoding="utf-8")
+
+
+def _pyproject_text() -> str:
+    assert PYPROJECT_PATH.is_file(), f"missing project metadata: {PYPROJECT_PATH}"
+    return PYPROJECT_PATH.read_text(encoding="utf-8")
 
 
 def test_windows_ci_targets_main_and_public_preview_with_read_only_permissions():
@@ -48,3 +54,7 @@ def test_windows_ci_installs_dev_and_automation_dependencies_and_runs_the_full_g
     assert "python scripts/quality_gate.py --all-tests" in workflow
     assert "continue-on-error" not in workflow
     assert "secrets." not in workflow
+
+
+def test_automation_extra_pins_the_mcp_v1_api_used_by_the_server():
+    assert 'automation = ["mcp>=1.0,<2"]' in _pyproject_text()

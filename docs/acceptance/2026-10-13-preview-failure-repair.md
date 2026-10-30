@@ -108,5 +108,8 @@ no automation test is skipped or weakened.
 
 The updated workflow regression first failed on the missing extra, then
 `python -m pytest -p no:cacheprovider -q tests/test_ci_workflow.py
-tests/test_gui_automation_mcp.py --tb=short` passed all 6 tests. Final-head
+tests/test_gui_automation_mcp.py --tb=short` passed all 6 tests. The next clean
+run exposed an API-major-version mismatch: the unconstrained install selected
+MCP 2.x, while this server uses the MCP 1.x `FastMCP` API. The automation extra
+now pins `mcp>=1.0,<2`; a focused rerun passes 7 tests. Final-head
 Windows/Python 3.11 CI must still pass before this external failure is closed.
