@@ -48,7 +48,7 @@ installation of the automation test dependency. No shared result schema changes.
 - [x] Full/type/boundary gates pass against the public preview base.
 - [x] Review notes state current behavior, recommendations, and consequences.
 - [x] Original workspace user changes remain untouched.
-- [ ] Final-head clean Windows/Python 3.11 GitHub CI passes.
+- [x] Final-head clean Windows/Python 3.11 GitHub CI passes.
 
 ## Verification
 

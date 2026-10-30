@@ -24,7 +24,8 @@
   Matplotlib/FreeType overflow for extreme initial text coordinates, and a
   symlink test that contradicted raw-input rejection. The project dependency,
   restored text data-limit handling, and rejection assertion are repaired;
-  focused coverage passes 8 and final-head CI is pending.
+  focused coverage passes 8 and final-head GitHub run `41034602895` passes the
+  complete Windows/Python 3.11 quality gate.
 - Draft PR #1 is the delivery boundary. Human architecture/scientific review
   is still required before merge; actionable recommendations are in
   `docs/acceptance/2026-10-13-preview-human-review.md`. Existing inferred DSC

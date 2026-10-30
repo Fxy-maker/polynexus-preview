@@ -20,7 +20,8 @@ The next clean full suite also found a missing `python-docx` dependency, a
 Matplotlib/FreeType overflow for extreme initial text coordinates, and a
 symlink test that contradicted the raw-input rejection contract. The
 dependency, restored text data-limit handling, and rejection assertion are
-repaired; final-head CI is pending.
+repaired; final-head GitHub run `41034602895` now passes the complete
+Windows/Python 3.11 quality gate.
 The public draft PR #1 remains human-review blocked. Concrete DSC role, SAXS
 tracking, diagnostic-model/SEC, worker-isolation and shared-evidence review
 notes are in `docs/acceptance/2026-10-13-preview-human-review.md`; repair

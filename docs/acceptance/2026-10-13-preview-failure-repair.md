@@ -128,3 +128,6 @@ surface:
 
 The focused replacement set passes 8 tests. These changes preserve the
 existing `needs_input` behavior for genuinely unreadable or unmappable data.
+
+Final-head GitHub verification passed in run `41034602895`:
+Windows/Python 3.11 completed the full quality gate with no failures.
