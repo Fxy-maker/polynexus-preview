@@ -113,3 +113,17 @@ run exposed an API-major-version mismatch: the unconstrained install selected
 MCP 2.x, while this server uses the MCP 1.x `FastMCP` API. The automation extra
 now pins `mcp>=1.0,<2`; a focused rerun passes 7 tests. Final-head
 Windows/Python 3.11 CI must still pass before this external failure is closed.
+
+The following full-suite failures were then repaired on the final clean-run
+surface:
+
+- `python-docx` is now a regular project dependency because the manuscript
+  builder's output contract includes `manuscript.docx`.
+- Generated data-coordinate text anchors now participate in the initial axis
+  data limits, preventing Matplotlib/FreeType overflow when a large valid
+  coordinate is first rendered on a linear axis and later switched to log.
+- The symlink provenance test now uses a valid labelled IR table; its purpose
+  is source resolution, not malformed-table handling.
+
+The focused replacement set passes 8 tests. These changes preserve the
+existing `needs_input` behavior for genuinely unreadable or unmappable data.

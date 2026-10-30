@@ -20,6 +20,11 @@
 - The subsequent clean install selected MCP 2.x, which removed the server's
   FastMCP 1.x import. The automation extra now pins `mcp>=1.0,<2`; focused
   workflow/MCP coverage passes 7 and final-head CI is pending.
+- Clean full-suite failures then exposed a missing `python-docx` declaration,
+  Matplotlib/FreeType overflow for extreme initial text coordinates, and an
+  invalid symlink fixture. The project dependency, initial text data-limit
+  handling, and valid IR fixture are repaired; focused coverage passes 8 and
+  final-head CI is pending.
 - Draft PR #1 is the delivery boundary. Human architecture/scientific review
   is still required before merge; actionable recommendations are in
   `docs/acceptance/2026-10-13-preview-human-review.md`. Existing inferred DSC

@@ -704,6 +704,24 @@ class FigureRenderAdapter:
             for artist in self.register_artists(object_id, artists, render_order=index):
                 artist_map.setdefault(object_id, []).append(artist)
 
+        # Text artists in data coordinates are not included in Matplotlib's
+        # normal data-limit calculation.  Include their finite anchors before
+        # the first draw so an extreme but valid label coordinate cannot be
+        # transformed into a multi-billion-pixel FreeType offset on a clean
+        # backend.  Axes-coordinate labels remain viewport-relative.
+        for artist in self._registered_artists:
+            if not isinstance(artist, Text):
+                continue
+            try:
+                if artist.get_transform() is not ax.transData:
+                    continue
+                x_value, y_value = artist.get_position()
+                if all(math.isfinite(float(value)) for value in (x_value, y_value)):
+                    ax.update_datalim([(float(x_value), float(y_value))])
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                continue
+        ax.autoscale_view()
+
         if rendered_count <= 0 and visible_count > 0:
             return None, {}
 

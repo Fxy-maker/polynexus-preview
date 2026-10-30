@@ -58,3 +58,7 @@ def test_windows_ci_installs_dev_and_automation_dependencies_and_runs_the_full_g
 
 def test_automation_extra_pins_the_mcp_v1_api_used_by_the_server():
     assert 'automation = ["mcp>=1.0,<2"]' in _pyproject_text()
+
+
+def test_project_declares_the_docx_dependency_used_by_manuscript_export():
+    assert '"python-docx>=1.1"' in _pyproject_text()
