@@ -122,8 +122,9 @@ surface:
 - Generated data-coordinate text anchors now participate in the initial axis
   data limits, preventing Matplotlib/FreeType overflow when a large valid
   coordinate is first rendered on a linear axis and later switched to log.
-- The symlink provenance test now uses a valid labelled IR table; its purpose
-  is source resolution, not malformed-table handling.
+- The symlink provenance test now asserts the existing security contract:
+  symlink/reparse-point raw inputs return `needs_input` before the provider;
+  the Core does not follow them into a different source identity.
 
 The focused replacement set passes 8 tests. These changes preserve the
 existing `needs_input` behavior for genuinely unreadable or unmappable data.

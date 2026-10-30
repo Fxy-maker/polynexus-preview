@@ -17,9 +17,10 @@ The next clean run selected MCP 2.x, incompatible with this server's FastMCP
 1.x API; the automation extra now pins `mcp>=1.0,<2`, with 7 focused tests
 passing. Final-head Windows/Python 3.11 CI is pending.
 The next clean full suite also found a missing `python-docx` dependency, a
-Matplotlib/FreeType overflow for extreme initial text coordinates, and an
-invalid symlink fixture. The dependency, initial text data-limit handling, and
-valid IR fixture are repaired; final-head CI is pending.
+Matplotlib/FreeType overflow for extreme initial text coordinates, and a
+symlink test that contradicted the raw-input rejection contract. The
+dependency, restored text data-limit handling, and rejection assertion are
+repaired; final-head CI is pending.
 The public draft PR #1 remains human-review blocked. Concrete DSC role, SAXS
 tracking, diagnostic-model/SEC, worker-isolation and shared-evidence review
 notes are in `docs/acceptance/2026-10-13-preview-human-review.md`; repair

@@ -76,7 +76,8 @@ The clean install then exposed an MCP 2.x API mismatch; the automation extra
 now pins the MCP 1.x API range used by `FastMCP`. Final-head CI remains the
 acceptance check for the clean environment. The subsequent clean full-suite
 run also required declaring `python-docx`, including extreme data-coordinate
-text anchors in initial Matplotlib limits, and making the symlink fixture a
-valid IR table. These are now repaired without weakening `needs_input` checks.
+text anchors in restored Matplotlib limits, and aligning the symlink fixture
+with the existing rejection contract. These are now repaired without
+weakening `needs_input` checks.
 Checkpoint only the changed repair source/tests and these documentation/memory
 paths; update existing public PR #1 without merging or touching private main.

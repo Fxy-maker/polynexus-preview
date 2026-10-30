@@ -21,10 +21,10 @@
   FastMCP 1.x import. The automation extra now pins `mcp>=1.0,<2`; focused
   workflow/MCP coverage passes 7 and final-head CI is pending.
 - Clean full-suite failures then exposed a missing `python-docx` declaration,
-  Matplotlib/FreeType overflow for extreme initial text coordinates, and an
-  invalid symlink fixture. The project dependency, initial text data-limit
-  handling, and valid IR fixture are repaired; focused coverage passes 8 and
-  final-head CI is pending.
+  Matplotlib/FreeType overflow for extreme initial text coordinates, and a
+  symlink test that contradicted raw-input rejection. The project dependency,
+  restored text data-limit handling, and rejection assertion are repaired;
+  focused coverage passes 8 and final-head CI is pending.
 - Draft PR #1 is the delivery boundary. Human architecture/scientific review
   is still required before merge; actionable recommendations are in
   `docs/acceptance/2026-10-13-preview-human-review.md`. Existing inferred DSC
