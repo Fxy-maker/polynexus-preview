@@ -31,8 +31,8 @@ contracts and verify each affected consumer.
 
 GUI display/selection/logging, figure export fixtures, canonical admission
 fixtures, SAXS feature tracking and signed-input regression consumers,
-Python 3.11 replay DTO construction, and Qt test lifecycle cleanup. No shared
-result schema changes.
+Python 3.11 replay DTO construction, Qt test lifecycle cleanup, and clean CI
+installation of the automation test dependency. No shared result schema changes.
 
 ## Implementation plan
 
@@ -48,6 +48,7 @@ result schema changes.
 - [x] Full/type/boundary gates pass against the public preview base.
 - [x] Review notes state current behavior, recommendations, and consequences.
 - [x] Original workspace user changes remain untouched.
+- [ ] Final-head clean Windows/Python 3.11 GitHub CI passes.
 
 ## Verification
 
@@ -69,5 +70,8 @@ Standalone Pyright reports zero errors/warnings. The earlier transient Qt
 construction failure, lifecycle cleanup and verified limits remain explicit
 in `docs/acceptance/2026-10-13-preview-failure-repair.md`.
 Concrete human review: `docs/acceptance/2026-10-13-preview-human-review.md`.
+Clean CI additionally exposed the missing optional MCP test dependency:
+the complete test install now requests both `dev` and `automation` extras.
+Final-head CI remains the acceptance check for the clean environment.
 Checkpoint only the changed repair source/tests and these documentation/memory
 paths; update existing public PR #1 without merging or touching private main.

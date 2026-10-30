@@ -40,11 +40,11 @@ def test_windows_ci_uses_the_supported_headless_python_environment():
     assert "cache-dependency-path: pyproject.toml" in workflow
 
 
-def test_windows_ci_installs_declared_dev_dependencies_and_runs_the_full_gate():
+def test_windows_ci_installs_dev_and_automation_dependencies_and_runs_the_full_gate():
     workflow = _workflow_text()
 
     assert "python -m pip install --upgrade pip" in workflow
-    assert 'python -m pip install -e ".[dev]"' in workflow
+    assert 'python -m pip install -e ".[dev,automation]"' in workflow
     assert "python scripts/quality_gate.py --all-tests" in workflow
     assert "continue-on-error" not in workflow
     assert "secrets." not in workflow

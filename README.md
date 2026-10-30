@@ -281,10 +281,11 @@ Documentation starts at `docs/README.md`. Current planning notes live under `doc
 
 ## Development
 
-Install development dependencies:
+Install development dependencies and the automation extra used by the full
+test suite:
 
 ```bash
-pip install -e .[dev]
+pip install -e ".[dev,automation]"
 ```
 
 Run tests:

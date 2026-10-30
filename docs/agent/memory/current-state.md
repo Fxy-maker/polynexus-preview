@@ -10,6 +10,9 @@ The follow-up repair resolves the 38 baseline failures, fixes the Python 3.11
 TGA replay default, and repairs GUI/SAXS tracking behavior without promoting
 capability maturity. Final local integration verification is green: 4995
 passed, 50 skipped, no failures; cumulative type/style/boundary gates pass.
+Clean GitHub CI subsequently exposed a missing MCP dependency at full-suite
+collection. CI/development full-suite installs now request `dev,automation`;
+workflow and MCP regressions pass 6. Final-head Windows/Python 3.11 CI is pending.
 The public draft PR #1 remains human-review blocked. Concrete DSC role, SAXS
 tracking, diagnostic-model/SEC, worker-isolation and shared-evidence review
 notes are in `docs/acceptance/2026-10-13-preview-human-review.md`; repair

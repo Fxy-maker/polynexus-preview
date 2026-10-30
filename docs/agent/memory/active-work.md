@@ -13,6 +13,10 @@
   standalone Pyright (0 errors/warnings), and boundary audit. One earlier
   transient Qt binding failure is documented; editor test teardown now flushes
   deferred deletion and Python callback cycles before the next constructor.
+- Clean CI passed quality 313/preprocessing 157 but stopped full-suite
+  collection on the absent optional MCP dependency. CI/development full-suite
+  installs now request `dev,automation`; workflow/MCP tests pass 6, with
+  final-head Windows/Python 3.11 CI pending.
 - Draft PR #1 is the delivery boundary. Human architecture/scientific review
   is still required before merge; actionable recommendations are in
   `docs/acceptance/2026-10-13-preview-human-review.md`. Existing inferred DSC

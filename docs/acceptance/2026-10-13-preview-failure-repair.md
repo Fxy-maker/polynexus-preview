@@ -95,3 +95,18 @@ datasets and other worktrees are outside the mutation scope. The existing
 public PR #1 remains a draft until the human review is complete.
 Its GitHub checks are the live evidence for the clean Windows/Python 3.11
 environment; local full verification here used Python 3.12.
+
+## Clean CI dependency follow-up
+
+GitHub runs `38366433798` and `38366844398` reached the full-suite collection
+after passing quality 313 and preprocessing 157, then failed importing
+`tests/test_gui_automation_mcp.py` because the `mcp` package was absent. The
+workflow installed only `.[dev]`; MCP is declared in the optional `automation`
+extra. CI and the full-suite development instructions now install
+`.[dev,automation]`. Ordinary application installation remains optional, and
+no automation test is skipped or weakened.
+
+The updated workflow regression first failed on the missing extra, then
+`python -m pytest -p no:cacheprovider -q tests/test_ci_workflow.py
+tests/test_gui_automation_mcp.py --tb=short` passed all 6 tests. Final-head
+Windows/Python 3.11 CI must still pass before this external failure is closed.
