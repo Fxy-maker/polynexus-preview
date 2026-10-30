@@ -346,6 +346,9 @@ class MainWindowRunMixin:
         kwargs = {"config": config, "submodule_id": submodule_id}
         if mask_edit_candidate is not None:
             kwargs["mask_edit_candidate"] = mask_edit_candidate
+        portable_export = getattr(self, "_current_portable_export", None)
+        if isinstance(portable_export, dict):
+            kwargs["portable_export"] = dict(portable_export)
         return kwargs
 
     def _run_single(self, *, mask_edit_candidate=None):
@@ -361,10 +364,14 @@ class MainWindowRunMixin:
         engine = self._get_engine_fn()(self._current_technique, submodule_id=submodule_id)
         message_box = self._message_box_class()
         logger = self._logger()
+        portable_export = getattr(self, "_current_portable_export", None)
+        analysis_path = self._current_filepath
+        if isinstance(portable_export, dict) and portable_export.get("export_path"):
+            analysis_path = str(portable_export["export_path"])
 
-        if engine and self._current_filepath:
+        if engine and analysis_path:
             try:
-                self._check_file_format_fn()(self._current_technique, self._current_filepath)
+                self._check_file_format_fn()(self._current_technique, analysis_path)
             except ValueError as exc:
                 logger.warning("File format validation failed: %s", exc)
                 message_box.warning(
@@ -374,8 +381,8 @@ class MainWindowRunMixin:
                 )
                 return
 
-        if engine and self._current_filepath:
-            ok, msg = engine.check_file_compatibility(self._current_filepath)
+        if engine and analysis_path:
+            ok, msg = engine.check_file_compatibility(analysis_path)
             if not ok:
                 self.log(tr("LOG_WARNING_DETAIL", msg))
                 reply = message_box.warning(
@@ -426,6 +433,10 @@ class MainWindowRunMixin:
             or self._current_technique == "nmr"
             or submodule_id in ("dsc.isothermal", "dsc.nonisothermal", "ir.temperature_2d")
         )
+        portable_export = getattr(self, "_current_portable_export", None)
+        if native_directory_run and isinstance(portable_export, dict):
+            self.log(tr("LOG_PORTABLE_EXPORT_NATIVE_DIRECTORY_UNSUPPORTED"))
+            return
         if native_directory_run:
             self._start_run_lifecycle()
             self._hide_error_diagnostics()
@@ -506,6 +517,7 @@ class MainWindowRunMixin:
             self._output_dir,
             config=self._build_run_config(),
             submodule_id=submodule_id,
+            portable_export=(dict(portable_export) if isinstance(portable_export, dict) else None),
         )
         token = self._begin_run_request()
         self._batch_worker.log_msg.connect(
@@ -562,6 +574,11 @@ class MainWindowRunMixin:
             config=config,
             submodule_id=submodule_id,
             engine=cached_engine,
+            portable_export=(
+                dict(getattr(self, "_current_portable_export", {}))
+                if isinstance(getattr(self, "_current_portable_export", None), dict)
+                else None
+            ),
         )
         self._worker.log_msg.connect(self.log)
         self._connect_worker_lifecycle(self._worker, token)

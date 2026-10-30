@@ -1211,6 +1211,9 @@ class ChartEditorGeneratedDocumentMixin:
         self._canvas.figure = fig
         self._figure = fig
         self._restore_generated_viewport()
+        adapter = getattr(self, "_figure_render_adapter", None)
+        if adapter is not None:
+            adapter.ensure_data_text_limits(fig)
         # The Qt canvas can normalize a replacement Figure to logical pixels,
         # and viewport restoration can restore the old logical figure size;
         # apply the live-canvas device-pixel fit after both operations.

@@ -1219,7 +1219,7 @@ class ImportSuggestionDialog(QDialog):
         self._ok_button = None
 
         self.setWindowTitle(tr("IMPORT_SETUP_TITLE") if self._is_manual_choice else tr("IMPORT_SUGGESTION_TITLE"))
-        self.resize(540, 240)
+        self.resize(540, 340)
 
         layout = QVBoxLayout(self)
 
@@ -1255,6 +1255,32 @@ class ImportSuggestionDialog(QDialog):
         self._open_folder_button.clicked.connect(self._open_path_folder)
         path_row_layout.addWidget(self._open_folder_button, 0)
         form.addRow(tr("IMPORT_SUGGESTION_PATH"), path_row)
+
+        self._portable_export_path = QLineEdit()
+        self._portable_export_path.setPlaceholderText(tr("IMPORT_PORTABLE_EXPORT_PLACEHOLDER"))
+        self._portable_export_path.setText(
+            str((getattr(suggestion, "portable_export", None) or {}).get("export_path", ""))
+        )
+        portable_export_row = QWidget()
+        portable_export_layout = QHBoxLayout(portable_export_row)
+        portable_export_layout.setContentsMargins(0, 0, 0, 0)
+        portable_export_layout.setSpacing(8)
+        portable_export_layout.addWidget(self._portable_export_path, 1)
+        self._portable_export_browse = QToolButton()
+        self._portable_export_browse.setText(tr("COMMON_BROWSE"))
+        self._portable_export_browse.clicked.connect(self._browse_portable_export)
+        portable_export_layout.addWidget(self._portable_export_browse, 0)
+        form.addRow(tr("IMPORT_PORTABLE_EXPORT"), portable_export_row)
+
+        self._portable_exporter = QLineEdit()
+        self._portable_exporter.setPlaceholderText(tr("IMPORT_PORTABLE_EXPORTER_PLACEHOLDER"))
+        self._portable_exporter.setText(
+            str((getattr(suggestion, "portable_export", None) or {}).get("exporter", ""))
+        )
+        form.addRow(tr("IMPORT_PORTABLE_EXPORTER"), self._portable_exporter)
+        self._portable_export_hint = QLabel(tr("IMPORT_PORTABLE_EXPORT_HINT"))
+        self._portable_export_hint.setWordWrap(True)
+        form.addRow("", self._portable_export_hint)
 
         self._reason_label = QLabel(_format_import_suggestion_reason(getattr(suggestion, "reason", "")))
         self._reason_label.setWordWrap(True)
@@ -1309,6 +1335,8 @@ class ImportSuggestionDialog(QDialog):
 
         self._technique_combo.currentIndexChanged.connect(self._refresh_submodules)
         self._submodule_combo.currentIndexChanged.connect(self._submodule_changed)
+        self._portable_export_path.textChanged.connect(self._update_accept_state)
+        self._portable_exporter.textChanged.connect(self._update_accept_state)
         self._refresh_submodules()
         self._update_accept_state()
 
@@ -1357,8 +1385,15 @@ class ImportSuggestionDialog(QDialog):
 
         needs_technique = self._is_manual_choice
         technique_selected = bool(self.selected_technique())
+        portable_path = self._portable_export_path.text().strip()
+        portable_valid = not portable_path or (
+            (os.path.isdir(portable_path) if self._is_dir else os.path.isfile(portable_path))
+            and bool(self._portable_exporter.text().strip())
+        )
         if self._ok_button is not None:
-            self._ok_button.setEnabled((not needs_technique) or technique_selected)
+            self._ok_button.setEnabled(
+                ((not needs_technique) or technique_selected) and portable_valid
+            )
         if hasattr(self, "_technique_hint"):
             self._technique_hint.setVisible(needs_technique and not technique_selected)
 
@@ -1378,6 +1413,43 @@ class ImportSuggestionDialog(QDialog):
         return str(self._mode_combo.currentData() or "").strip() or self._default_mode or ("directory" if self._is_dir else "single")
 
 
+    def selected_portable_export(self):
+        export_path = self._portable_export_path.text().strip()
+        if not export_path:
+            return None
+        if self._is_dir:
+            return {
+                "raw_source": self._path,
+                "export_directory": os.path.abspath(export_path),
+                "exporter": self._portable_exporter.text().strip(),
+            }
+        return {
+            "raw_source": self._path,
+            "export_path": os.path.abspath(export_path),
+            "exporter": self._portable_exporter.text().strip(),
+        }
+
+
+    def _browse_portable_export(self):
+        if self._is_dir:
+            path = QFileDialog.getExistingDirectory(
+                self,
+                tr("IMPORT_PORTABLE_EXPORT_DIALOG"),
+                self._path,
+            )
+        else:
+            path, _ = QFileDialog.getOpenFileName(
+                self,
+                tr("IMPORT_PORTABLE_EXPORT_DIALOG"),
+                os.path.dirname(self._path),
+                tr("IMPORT_PORTABLE_EXPORT_FILTER"),
+            )
+        if path:
+            self._portable_export_path.setText(path)
+            if not self._portable_exporter.text().strip():
+                self._portable_exporter.setText(tr("IMPORT_PORTABLE_EXPORT_DEFAULT"))
+
+
     def _copy_path_to_clipboard(self):
 
         QApplication.clipboard().setText(self._path)
@@ -1393,6 +1465,9 @@ class ImportSuggestionDialog(QDialog):
             f"{tr('IMPORT_SUGGESTION_SUBMODULE')}: {self._submodule_combo.currentText()}",
             f"{tr('IMPORT_SUGGESTION_MODE')}: {self._mode_combo.currentText()}",
         ]
+        portable = self.selected_portable_export()
+        if portable is not None:
+            summary.append(f"{tr('IMPORT_PORTABLE_EXPORT')}: {portable['export_path']}")
         QApplication.clipboard().setText(" | ".join(summary))
 
 
@@ -1462,6 +1537,7 @@ class MainWindow(
 
         self._current_filepath = ""
         self._current_input_mode = ""
+        self._current_portable_export = None
         self._current_sample_id = ""
         self._current_batch_id = ""
         self._current_sample_name = ""
@@ -3045,7 +3121,8 @@ class MainWindow(
             return
         lines = self._pending_log_lines
         self._pending_log_lines = []
-        self._log_panel.append("\n".join(lines))
+        # Explicit paragraphs force rich text and retain the per-line block cap.
+        self._log_panel.append("<p>" + "</p><p>".join(lines) + "</p>")
         self._log_panel.verticalScrollBar().setValue(
             self._log_panel.verticalScrollBar().maximum()
         )

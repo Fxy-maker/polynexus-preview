@@ -2,9 +2,9 @@ name: PolyNexus CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, research-preview-v0.1]
   push:
-    branches: [main]
+    branches: [main, research-preview-v0.1]
 
 permissions:
   contents: read
@@ -37,7 +37,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev,automation]"
 
       - name: Run complete quality gate
         shell: pwsh

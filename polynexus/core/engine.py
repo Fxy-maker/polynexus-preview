@@ -1,7 +1,7 @@
 """
 Base engine for all analysis techniques in PolyNexus.
 
-Each technique (DSC, IR, WAXS, SAXS, NMR) inherits from BaseEngine
+Each technique (DSC, IR, WAXS, SAXS, NMR, TGA) inherits from BaseEngine
 and implements: load(), preprocess(), analyze(), plot(), export().
 
 New techniques register via TECHNIQUE_REGISTRY for auto-discovery
@@ -18,6 +18,14 @@ import numpy as np
 import pandas as pd
 
 from .analysis_evidence import AnalysisEvidence
+from .submodule_registry import (
+    SubModuleSpec as SubModuleSpec,
+    SUBMODULE_REGISTRY as SUBMODULE_REGISTRY,
+    register_submodule as register_submodule,
+    get_submodule_registry as get_submodule_registry,
+    list_all_submodules as list_all_submodules,
+    detect_submodule as detect_submodule,
+)
 
 
 logger = logging.getLogger("polynexus")
@@ -39,12 +47,18 @@ def _build_supported_formats() -> dict[str, list[str]]:
     dsc_formats = sorted({".csv", ".txt", ".dat", ".001", ".asc", ".xls", ".xlsx"})
     ir_formats = sorted({".csv", ".txt", ".dat", ".asc", ".prn", ".spa", ".dpt"})
     nmr_formats = sorted(set(NMR_EXTS) | {"fid"})
+    tga_formats = sorted({".csv", ".tsv", ".txt", ".dat", ".asc", ".xls", ".xlsx", ".xlsm"})
+    dma_formats = sorted({".csv", ".tsv", ".txt", ".dat", ".asc", ".xls", ".xlsx", ".xlsm"})
+    mechanics_formats = sorted({".csv", ".tsv", ".txt", ".dat", ".asc", ".xls", ".xlsx", ".xlsm"})
     return {
         "saxs": saxs_formats,
         "waxs": waxs_formats,
         "dsc": dsc_formats,
         "ir": ir_formats,
         "nmr": nmr_formats,
+        "tga": tga_formats,
+        "dma": dma_formats,
+        "mechanics": mechanics_formats,
     }
 
 
@@ -184,7 +198,8 @@ class PlotEdits:
     @classmethod
     def from_json(cls, data: str) -> 'PlotEdits':
         import json
-        if not data: return cls()
+        if not data:
+            return cls()
         d = json.loads(data)
         co = {k: CurveOverride(**v) for k, v in d.pop('curve_overrides', {}).items()}
         ao = {int(k): AxesOverride(**v) for k, v in d.pop('axes_overrides', {}).items()}
@@ -236,38 +251,61 @@ class BaseEngine(ABC):
         for i, ax in enumerate(fig.axes):
             ax_edit = edits.axes_overrides.get(i)
             if ax_edit:
-                if ax_edit.xlabel: ax.set_xlabel(ax_edit.xlabel)
-                if ax_edit.ylabel: ax.set_ylabel(ax_edit.ylabel)
-                if ax_edit.title: ax.set_title(ax_edit.title)
-                if ax_edit.xlim: ax.set_xlim(*ax_edit.xlim)
-                if ax_edit.ylim: ax.set_ylim(*ax_edit.ylim)
-                if ax_edit.xscale: ax.set_xscale(ax_edit.xscale)
-                if ax_edit.yscale: ax.set_yscale(ax_edit.yscale)
+                if ax_edit.xlabel:
+                    ax.set_xlabel(ax_edit.xlabel)
+                if ax_edit.ylabel:
+                    ax.set_ylabel(ax_edit.ylabel)
+                if ax_edit.title:
+                    ax.set_title(ax_edit.title)
+                if ax_edit.xlim:
+                    ax.set_xlim(*ax_edit.xlim)
+                if ax_edit.ylim:
+                    ax.set_ylim(*ax_edit.ylim)
+                if ax_edit.xscale:
+                    ax.set_xscale(ax_edit.xscale)
+                if ax_edit.yscale:
+                    ax.set_yscale(ax_edit.yscale)
             elif i == 0 and not edits.axes_overrides:
                 # Legacy: global xlabel/ylabel/title apply to first axes
-                if edits.xlabel: ax.set_xlabel(edits.xlabel)
-                if edits.ylabel: ax.set_ylabel(edits.ylabel)
-                if edits.title: ax.set_title(edits.title)
+                if edits.xlabel:
+                    ax.set_xlabel(edits.xlabel)
+                if edits.ylabel:
+                    ax.set_ylabel(edits.ylabel)
+                if edits.title:
+                    ax.set_title(edits.title)
 
             for line in ax.lines:
                 label = line.get_label()
                 if label in edits.curve_overrides:
                     ov = edits.curve_overrides[label]
-                    if ov.color: line.set_color(ov.color)
-                    if ov.linewidth: line.set_linewidth(ov.linewidth)
-                    if ov.linestyle: line.set_linestyle(ov.linestyle)
-                    if ov.marker: line.set_marker(ov.marker)
-                    if ov.markersize: line.set_markersize(ov.markersize)
-                    if ov.label: line.set_label(ov.label)
-                    if ov.visible is not None: line.set_visible(ov.visible)
+                    if ov.color:
+                        line.set_color(ov.color)
+                    if ov.linewidth:
+                        line.set_linewidth(ov.linewidth)
+                    if ov.linestyle:
+                        line.set_linestyle(ov.linestyle)
+                    if ov.marker:
+                        line.set_marker(ov.marker)
+                    if ov.markersize:
+                        line.set_markersize(ov.markersize)
+                    if ov.label:
+                        line.set_label(ov.label)
+                    if ov.visible is not None:
+                        line.set_visible(ov.visible)
 
-            if edits.grid_visible is not None: ax.grid(edits.grid_visible, alpha=edits.grid_alpha or 0.2)
+            if edits.grid_visible is not None:
+                ax.grid(edits.grid_visible, alpha=edits.grid_alpha or 0.2)
             for spine in ax.spines.values():
-                if edits.spine_width: spine.set_linewidth(edits.spine_width)
-                if edits.spine_color: spine.set_color(edits.spine_color)
-            if edits.tick_direction: ax.tick_params(direction=edits.tick_direction)
-            if edits.font_size: ax.tick_params(labelsize=edits.font_size)
-            if edits.bg_color: ax.set_facecolor(edits.bg_color)
+                if edits.spine_width:
+                    spine.set_linewidth(edits.spine_width)
+                if edits.spine_color:
+                    spine.set_color(edits.spine_color)
+            if edits.tick_direction:
+                ax.tick_params(direction=edits.tick_direction)
+            if edits.font_size:
+                ax.tick_params(labelsize=edits.font_size)
+            if edits.bg_color:
+                ax.set_facecolor(edits.bg_color)
 
     def log(self, msg: str):
         self.result.logs.append(msg)
@@ -423,7 +461,7 @@ class BaseEngine(ABC):
                 if not self.load(filepath):
                     self.log("ERROR: Failed to load data")
                     return self.result
-                self.log(f"Data loaded successfully")
+                self.log("Data loaded successfully")
 
                 if not self.preprocess():
                     self.log("ERROR: Preprocessing failed")
@@ -505,11 +543,3 @@ def list_techniques() -> list:
          'category': getattr(cls, 'category', EngineCategory.EXPERIMENTAL).value}
         for name, cls in TECHNIQUE_REGISTRY.items()
     ]
-
-
-# ── SubModule support (v2.0) ──
-from .submodule_registry import (
-    SubModuleSpec, SUBMODULE_REGISTRY,
-    register_submodule, get_submodule_registry,
-    list_all_submodules, detect_submodule,
-)

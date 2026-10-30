@@ -39,6 +39,8 @@ def _cleanup_qt_widgets():
 def _real_cases() -> tuple[tuple[str, str, Path], ...]:
     repository_root = Path(__file__).resolve().parents[1]
     data_root = repository_root / "\u6d4b\u8bd5\u6570\u636e"
+    if not data_root.is_dir():
+        pytest.skip("optional local real-data fixtures are unavailable", allow_module_level=True)
     dsc_source = next((data_root / "dsc").rglob("FXY-PA6.txt"))
     dsc_isothermal_source = next(
         (data_root / "dsc").rglob("PA6-DWJJ.txt")

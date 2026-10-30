@@ -23,6 +23,7 @@ def test_workspace_creates_only_polynexus_children(tmp_path: Path) -> None:
         "runs",
         "figures",
         "evidence",
+        "validation",
     }
 
 
@@ -40,6 +41,7 @@ def test_workspace_accepts_an_existing_ordinary_derived_directory(tmp_path: Path
         "runs",
         "figures",
         "evidence",
+        "validation",
     }
 
 

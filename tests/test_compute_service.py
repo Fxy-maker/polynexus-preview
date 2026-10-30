@@ -712,9 +712,9 @@ def test_direct_run_uses_one_canonical_source_path(
     assert engine.calls[0][0] == run.artifact.path
 
 
-def test_direct_run_resolves_symlink_source_for_artifact_and_provider(tmp_path: Path) -> None:
+def test_direct_run_rejects_symlink_source_before_provider(tmp_path: Path) -> None:
     source = tmp_path / "input.csv"
-    source.write_text("data", encoding="utf-8")
+    source.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")
     link = tmp_path / "linked-input.csv"
     try:
         link.symlink_to(source)
@@ -726,9 +726,9 @@ def test_direct_run_resolves_symlink_source_for_artifact_and_provider(tmp_path: 
         technique="ir", path=link, output_dir=tmp_path / "out"
     )
 
-    assert run.status == "completed"
-    assert run.artifact.path == str(source.resolve())
-    assert engine.calls[0][0] == run.artifact.path
+    assert run.status == "needs_input"
+    assert "raw_artifact_unreadable" in run.reasons
+    assert engine.calls == []
 
 
 @pytest.mark.parametrize("output_dir", (Path("relative-output"), Path("")))

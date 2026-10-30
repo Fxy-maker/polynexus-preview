@@ -17,6 +17,7 @@ from typing import Any
 
 from ..artifacts import directory_manifest_entries, directory_manifest_sha256, raw_artifact_id
 from ..canonical_experiments.models import CanonicalExperiment, CapabilityItemResult
+from ..input_formats import FormatInspection
 from .method_sensitivity import MethodSensitivity, sensitivities_from_metrics
 from .capability_catalog import default_capability_catalog
 
@@ -60,6 +61,11 @@ def _freeze_strings(value: Sequence[str] | None, field_name: str) -> tuple[str, 
 
 def _freeze_json(value: Any) -> Any:
     """Validate and recursively freeze values accepted by the public contracts."""
+    if (
+        type(value).__module__ == "polynexus.core.ai_platform.contracts"
+        and type(value).__name__ in {"UncertaintyComponent", "UncertaintySummary"}
+    ):
+        return _freeze_json(value.to_dict())
     if value is None or isinstance(value, (str, bool, int)):
         return value
     if isinstance(value, Path):
@@ -358,7 +364,15 @@ class CanonicalDataset:
                 "source_artifact_id": artifact.artifact_id,
                 "technique": artifact.technique,
                 "template_id": template_id,
-                "payload": payload,
+                # ``payload.path`` is retained as provenance, but must not
+                # make the canonical dataset identity depend on a temporary
+                # extraction directory (for example public validation
+                # replay).  The source artifact ID and content hash already
+                # provide the identity-bearing binding.
+                "payload": {
+                    **payload,
+                    "path": "<path-bound-provenance>",
+                },
                 "warnings": (),
             }
         )
@@ -544,6 +558,8 @@ class ComputeResult:
             value_available = present and not (
                 item.get("kind") == "scalar" and item.get("value") is None
             )
+            if item.get("kind") == "diagnostic":
+                value_available = False
             if not value_available:
                 status = "unavailable"
             elif computability in (None, "computed"):
@@ -576,6 +592,8 @@ class ComputeResult:
                 record["value"] = item.get("value")
             elif item["kind"] == "series" and status == "computed":
                 record["item_count"] = item.get("item_count", 0)
+            elif item["kind"] == "diagnostic":
+                record["unavailable_reason"] = item.get("unavailable_reason")
             manifest.append(record)
         return tuple(manifest)
 
@@ -706,6 +724,7 @@ class ComputeRun:
     computation_state: Any = None
     provenance: Mapping[str, Any] = field(default_factory=dict)
     uncertainty: Mapping[str, Any] = field(default_factory=dict)
+    input_inspection: FormatInspection | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.status, str):
@@ -724,6 +743,16 @@ class ComputeRun:
             self.canonical_template, CanonicalExperiment
         ):
             raise TypeError("canonical_template must be a CanonicalExperiment")
+        if self.input_inspection is not None and not isinstance(
+            self.input_inspection, FormatInspection
+        ):
+            raise TypeError("input_inspection must be a FormatInspection")
+        if (
+            self.input_inspection is not None
+            and self.artifact.sha256
+            and self.input_inspection.source_sha256 != self.artifact.sha256
+        ):
+            raise ValueError("Compute run input inspection must use the run artifact content")
         object.__setattr__(self, "capability_items", tuple(self.capability_items))
         if not all(isinstance(item, CapabilityItemResult) for item in self.capability_items):
             raise TypeError("capability_items must contain CapabilityItemResult values")
@@ -866,6 +895,7 @@ class ComputeRun:
         computation_state: Any = None,
         provenance: Mapping[str, Any] | None = None,
         uncertainty: Mapping[str, Any] | None = None,
+        input_inspection: FormatInspection | None = None,
     ) -> ComputeRun:
         return cls(
             status="completed",
@@ -882,10 +912,17 @@ class ComputeRun:
             computation_state=computation_state,
             provenance={} if provenance is None else provenance,
             uncertainty={} if uncertainty is None else uncertainty,
+            input_inspection=input_inspection,
         )
 
     def to_dict(self) -> dict[str, Any]:
-        optional_names = {"descriptor_id", "computation_state", "provenance", "uncertainty"}
+        optional_names = {
+            "descriptor_id",
+            "computation_state",
+            "provenance",
+            "uncertainty",
+            "input_inspection",
+        }
         raw_payload = {}
         for field_info in fields(self):
             if field_info.name == "legacy_result":

@@ -43,6 +43,7 @@ def test_manifest_editor_save_then_publish_refreshes_lifecycle_context(
     app = QApplication.instance() or QApplication([])
     initial = FigurePipeline().run(
         output_root=tmp_path,
+        profile_id="paper_complete",
         run_id="run-1",
         technique="ir",
         definitions=(ir_definition,),

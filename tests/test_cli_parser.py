@@ -26,6 +26,31 @@ def test_cli_parser_exposes_primary_entry_points():
     assert workflow.cmd == "agent-workflow"
     assert workflow.operation == "inspect"
 
+    inspection = parser.parse_args(
+        ["inspect-format", "sample.ngb-ds1", "--technique", "tga", "--json"]
+    )
+    assert inspection.cmd == "inspect-format"
+    assert inspection.technique == "tga"
+    assert inspection.json is True
+
+    portable = parser.parse_args(
+        [
+            "portable-export",
+            "sample.ngb-ds1",
+            "sample.csv",
+            "--technique",
+            "tga",
+            "--exporter",
+            "Proteus",
+            "--convert-only",
+            "--json",
+        ]
+    )
+    assert portable.cmd == "portable-export"
+    assert portable.raw_source == "sample.ngb-ds1"
+    assert portable.export == "sample.csv"
+    assert portable.convert_only is True
+
 
 @pytest.mark.parametrize("technique", ["saxs", "dsc", "ir", "waxs", "nmr"])
 def test_cli_parser_accepts_json_for_single_technique(technique: str) -> None:

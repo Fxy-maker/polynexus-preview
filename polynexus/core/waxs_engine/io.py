@@ -5,23 +5,19 @@ generic CSV, experiment directories with condition parsing.
 
 Reuses the SAXS engine's EDF reader for 2D image loading.
 """
-import logging
-logger = logging.getLogger(__name__)
-
-
 import os
 import re
 import numpy as np
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
-
+import logging
 from ..saxs_engine.io import (
-    read_image,
     read_1d_profile,
     scan_experiment_dir,
     assemble_dataset,
-    _parse_condition,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +136,7 @@ def _auto_beam_center(scan: WAXSScan, img: np.ndarray) -> None:
 
 def _load_1d(filepath: str) -> WAXSScan:
     """Load a 1D WAXS profile from text file."""
-    q, I = read_1d_profile(filepath)
+    q, intensity, metadata = read_1d_profile(filepath)
     if q is None or len(q) == 0:
         return WAXSScan()
 
@@ -150,14 +146,15 @@ def _load_1d(filepath: str) -> WAXSScan:
 
     scan = WAXSScan(
         label=os.path.splitext(os.path.basename(filepath))[0],
+        metadata=metadata,
     )
 
     if is_q_space:
         scan.q_Ainv = q
-        scan.I_arb = I
+        scan.I_arb = intensity
     else:
         scan.two_theta_deg = q
-        scan.I_arb = I
+        scan.I_arb = intensity
 
     return scan
 

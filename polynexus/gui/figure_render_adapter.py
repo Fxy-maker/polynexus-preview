@@ -704,6 +704,24 @@ class FigureRenderAdapter:
             for artist in self.register_artists(object_id, artists, render_order=index):
                 artist_map.setdefault(object_id, []).append(artist)
 
+        # Text artists in data coordinates are not included in Matplotlib's
+        # normal data-limit calculation.  Include their finite anchors before
+        # the first draw so an extreme but valid label coordinate cannot be
+        # transformed into a multi-billion-pixel FreeType offset on a clean
+        # backend.  Axes-coordinate labels remain viewport-relative.
+        for artist in self._registered_artists:
+            if not isinstance(artist, Text):
+                continue
+            try:
+                if artist.get_transform() is not ax.transData:
+                    continue
+                x_value, y_value = artist.get_position()
+                if all(math.isfinite(float(value)) for value in (x_value, y_value)):
+                    ax.update_datalim([(float(x_value), float(y_value))])
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                continue
+        ax.autoscale_view()
+
         if rendered_count <= 0 and visible_count > 0:
             return None, {}
 
@@ -718,6 +736,53 @@ class FigureRenderAdapter:
         self._highlight_selected(artist_map.get(str(selected_object_id or ""), []))
         fig.tight_layout()
         return fig, artist_map
+
+    def ensure_data_text_limits(self, figure) -> None:
+        """Expand restored viewport limits around finite data-coordinate text."""
+
+        for ax in getattr(figure, "axes", ()):
+            data_text: list[tuple[float, float]] = []
+            for artist in getattr(ax, "texts", ()):
+                if not isinstance(artist, Text):
+                    continue
+                try:
+                    if artist.get_transform() is not ax.transData:
+                        continue
+                    x_value, y_value = artist.get_position()
+                    point = (float(x_value), float(y_value))
+                    if all(math.isfinite(value) for value in point):
+                        data_text.append(point)
+                except (AttributeError, TypeError, ValueError, OverflowError):
+                    continue
+            if not data_text:
+                continue
+            try:
+                x_limits = tuple(float(value) for value in ax.get_xlim())
+                y_limits = tuple(float(value) for value in ax.get_ylim())
+                x_values = [point[0] for point in data_text]
+                y_values = [point[1] for point in data_text]
+                if not all(math.isfinite(value) for value in (*x_limits, *y_limits, *x_values, *y_values)):
+                    continue
+
+                def expanded(values: tuple[float, ...], *, logarithmic: bool) -> tuple[float, float]:
+                    lower = min(values)
+                    upper = max(values)
+                    if lower == upper:
+                        delta = max(abs(lower) * 0.05, 1.0)
+                        return lower - delta, upper + delta
+                    if logarithmic and lower > 0.0:
+                        return lower / 1.05, upper * 1.05
+                    delta = (upper - lower) * 0.05
+                    return lower - delta, upper + delta
+
+                if min(x_values) < min(x_limits) or max(x_values) > max(x_limits):
+                    ax.set_xlim(expanded((*x_limits, *x_values), logarithmic=ax.get_xscale() == "log"))
+                if min(y_values) < min(y_limits) or max(y_values) > max(y_limits):
+                    if ax.get_yscale() == "log" and min((*y_limits, *y_values)) <= 0.0:
+                        continue
+                    ax.set_ylim(expanded((*y_limits, *y_values), logarithmic=ax.get_yscale() == "log"))
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                continue
 
     def object_id_for_artist(self, artist) -> str:
         return str(self._artist_to_object_id.get(id(artist), "") or "")

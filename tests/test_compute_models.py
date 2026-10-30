@@ -4,6 +4,7 @@ import json
 import errno
 import os
 from pathlib import Path
+from dataclasses import replace
 import re
 import stat
 import subprocess
@@ -388,6 +389,20 @@ def test_missing_artifact_cannot_make_a_direct_envelope(tmp_path: Path) -> None:
     assert artifact.sha256 == ""
     with pytest.raises(ValueError, match="content hash"):
         CanonicalDataset.direct_envelope(artifact)
+
+
+def test_direct_envelope_dataset_identity_is_path_independent(tmp_path: Path) -> None:
+    first = tmp_path / "one.csv"
+    second = tmp_path / "two.csv"
+    first.write_text("x,y\n1,2\n", encoding="utf-8")
+    second.write_text("x,y\n1,2\n", encoding="utf-8")
+    artifact_one = RawArtifact.from_path(first, technique="ir")
+    artifact_two = replace(RawArtifact.from_path(second, technique="ir"), artifact_id=artifact_one.artifact_id)
+    # Canonical dataset admission is content-bound; source path remains in the
+    # envelope for provenance but must not make replay IDs depend on a temp
+    # extraction directory.
+    assert artifact_one.sha256 == artifact_two.sha256
+    assert CanonicalDataset.direct_envelope(artifact_one).dataset_id == CanonicalDataset.direct_envelope(artifact_two).dataset_id
 
 
 def test_legacy_projection_collects_warnings_without_reading_analysis_evidence() -> None:

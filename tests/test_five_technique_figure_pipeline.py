@@ -25,6 +25,7 @@ def test_five_techniques_publish_identical_paper_complete_roles(tmp_path):
         manifest = pipeline.run(
             output_root=tmp_path,
             run_id=run_id,
+            profile_id="paper_complete",
             technique=technique,
             definitions=(definition,),
         )

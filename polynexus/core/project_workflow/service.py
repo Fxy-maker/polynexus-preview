@@ -26,7 +26,14 @@ from .adapters import (
 from .index import ProjectIndexer
 from .grouping import CandidateExperimentGroup, candidate_groups
 from .ir_group_figures import FigureCandidateSet, render_ftir_group_candidates
-from .models import AnalysisPlan, AnalysisRequest, EvidenceItem, ProjectPlan, ResearchGraph
+from .models import (
+    AnalysisPlan,
+    AnalysisRequest,
+    EvidenceItem,
+    PortableExportBatchManifest,
+    ProjectPlan,
+    ResearchGraph,
+)
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
 from .selection import FigureSelectionRequest, resolve_figure_selection
 from .quick_run_attachment import QuickRunAttachment, attach_quick_run
@@ -180,7 +187,18 @@ class ProjectWorkflowService:
         grouped: dict[str, list[str]] = {}
         reasons: list[str] = list(discovery_reasons)
         for artifact in graph.artifacts:
-            if artifact.technique in {"dsc", "ir", "waxs", "saxs", "nmr"}:
+            if artifact.technique in {
+                "dsc",
+                "ir",
+                "waxs",
+                "saxs",
+                "nmr",
+                "tga",
+                "dma",
+                "rheology",
+                "mechanics",
+                "sec",
+            }:
                 grouped.setdefault(artifact.technique, []).append(artifact.relative_path)
             else:
                 reasons.extend(artifact.reason_codes or ("technique_unrecognized",))
@@ -338,6 +356,15 @@ class ProjectWorkflowService:
             graph = self._load_or_discover(request.data_scope)
         except (ValueError, KeyError, TypeError, OSError, UnicodeError):
             return self._persist_blocked_plan(request, "inventory_invalid")
+        try:
+            portable_manifest = self._portable_export_manifest(request)
+            portable_by_relative = self._portable_manifest_declarations(
+                portable_manifest,
+                graph,
+                request.data_scope,
+            )
+        except (KeyError, TypeError, ValueError, OSError, UnicodeError):
+            return self._persist_blocked_plan(request, "portable_export_manifest_invalid")
         scope_error = self._scope_error(graph, request.data_scope)
         if scope_error:
             return self._persist_blocked_plan(request, scope_error)
@@ -351,13 +378,26 @@ class ProjectWorkflowService:
         reason_codes: list[str] = []
         steps: list[dict[str, object]] = []
         for technique in techniques:
+            technique_portable = (
+                portable_by_relative
+                if portable_manifest is not None and portable_manifest.technique == technique
+                else {}
+            )
             selected = tuple(
                 artifact for artifact in artifacts
-                if artifact.technique == technique and artifact.inspection_status != "blocked"
+                if artifact.technique == technique
+                and (
+                    artifact.inspection_status != "blocked"
+                    or artifact.relative_path in technique_portable
+                )
             )
             blocked_count = sum(
                 1 for artifact in artifacts
-                if artifact.technique == technique and artifact.inspection_status == "blocked"
+                if (
+                    artifact.technique == technique
+                    and artifact.inspection_status == "blocked"
+                    and artifact.relative_path not in technique_portable
+                )
             )
             if blocked_count:
                 reason_codes.append("artifact_blocked")
@@ -420,12 +460,17 @@ class ProjectWorkflowService:
                         "workflow_id": _SERIES_WORKFLOW,
                         "technique": technique,
                         "paths": [str((self.workspace.root / artifact.relative_path).absolute()) for artifact in selected],
+                        **(
+                            {"portable_exports": [technique_portable[artifact.relative_path] for artifact in selected]}
+                            if technique_portable
+                            else {}
+                        ),
                     })
                     if proposal.recipe is None:
                         reason_codes.extend(proposal.reason_codes or ("adapter_blocked",))
                         steps.append({"step_id": f"{technique}.series.blocked", "technique": technique, "status": "blocked", "provider_id": None, "template_id": None, "artifact_paths": [artifact.relative_path for artifact in selected], "artifact_sha256": [artifact.sha256 for artifact in selected]})
                     else:
-                        steps.append({"step_id": "series", "technique": technique, "status": "review_required" if proposal.status == "review_required" else "ready", "provider_id": _SERIES_WORKFLOW, "template_id": str(proposal.recipe.steps[0].parameters.get("submodule_id", "")), "artifact_paths": [artifact.relative_path for artifact in selected], "artifact_sha256": [artifact.sha256 for artifact in selected], "source_order": list(range(len(proposal.recipe.artifacts)))})
+                        steps.append({"step_id": "series", "technique": technique, "status": "review_required" if proposal.status == "review_required" else "ready", "provider_id": _SERIES_WORKFLOW, "template_id": str(proposal.recipe.steps[0].parameters.get("submodule_id", "")), "artifact_paths": [artifact.relative_path for artifact in selected], "artifact_sha256": [artifact.sha256 for artifact in selected], "source_order": list(range(len(proposal.recipe.artifacts))), **({"portable_exports": [technique_portable[artifact.relative_path] for artifact in selected], "portable_export_manifest": portable_manifest.to_dict()} if technique_portable else {})})
                     continue
                 single_manifest = {
                     "workflow_id": _SINGLE_WORKFLOW,
@@ -434,7 +479,17 @@ class ProjectWorkflowService:
                         str((self.workspace.root / artifact.relative_path).absolute())
                         for artifact in selected
                     ],
+                    **(
+                        {"portable_export": technique_portable[selected[0].relative_path]}
+                        if technique_portable and selected
+                        else {}
+                    ),
                 }
+                analysis_options = self._analysis_options_for_technique(
+                    request, technique
+                )
+                if analysis_options is not None:
+                    single_manifest["analysis_options"] = analysis_options
                 if technique == "nmr":
                     requested_submodule = request.parameters.get("submodule_id") or request.parameters.get("nmr_submodule")
                     if requested_submodule:
@@ -457,6 +512,11 @@ class ProjectWorkflowService:
                     step_status = "review_required" if proposal.status == "review_required" else "ready"
                     provider_id = _SINGLE_WORKFLOW
                     template_id = str(recipe_step.parameters.get("submodule_id", ""))
+                step_analysis_options = (
+                    recipe_step.parameters.get("analysis_options")
+                    if proposal.recipe is not None
+                    else None
+                )
                 steps.append({
                     "step_id": step_id,
                     "technique": technique,
@@ -466,6 +526,19 @@ class ProjectWorkflowService:
                     "artifact_paths": [artifact.relative_path for artifact in selected],
                     "artifact_sha256": selected[0].sha256 if len(selected) == 1 else None,
                     "requested_outputs": list(request.requested_outputs),
+                    **(
+                        {"analysis_options": step_analysis_options}
+                        if isinstance(step_analysis_options, Mapping)
+                        else {}
+                    ),
+                    **(
+                        {
+                            "portable_export": technique_portable[selected[0].relative_path],
+                            "portable_export_manifest": portable_manifest.to_dict(),
+                        }
+                        if technique_portable and selected
+                        else {}
+                    ),
                 })
                 continue
             status = "review_required" if any(a.inspection_status == "review_required" for a in selected) else "ready"
@@ -843,7 +916,7 @@ class ProjectWorkflowService:
         plan: ProjectPlan,
         steps: tuple[Mapping[str, object], ...],
     ) -> ProjectWorkflowRun:
-        """Execute exactly one registered IR/WAXS/SAXS input through the provider."""
+        """Execute one registered canonical input through the shared provider."""
         if len(steps) != 1:
             return self._blocked_project_run(plan, "mixed_technique_inputs")
         plan_step = steps[0]
@@ -871,7 +944,14 @@ class ProjectWorkflowService:
             "workflow_id": _SINGLE_WORKFLOW,
             "technique": technique,
             "paths": (str(source),),
+            **(
+                {"portable_export": plan_step["portable_export"]}
+                if isinstance(plan_step.get("portable_export"), Mapping)
+                else {}
+            ),
         }
+        if isinstance(plan_step.get("analysis_options"), Mapping):
+            single_manifest["analysis_options"] = plan_step["analysis_options"]
         if technique == "nmr":
             requested_submodule = request.parameters.get("submodule_id") or request.parameters.get("nmr_submodule")
             if requested_submodule:
@@ -926,6 +1006,24 @@ class ProjectWorkflowService:
             reason_codes=analysis_run.reason_codes,
         )
 
+    @staticmethod
+    def _analysis_options_for_technique(
+        request: AnalysisRequest, technique: str
+    ) -> Mapping[str, Any] | None:
+        raw = request.parameters.get("analysis_options")
+        if raw is None:
+            return None
+        if not isinstance(raw, Mapping):
+            return {"__invalid__": raw}
+        scoped = raw.get(str(technique).lower())
+        if scoped is not None:
+            return (
+                scoped
+                if isinstance(scoped, Mapping)
+                else {"__invalid__": scoped}
+            )
+        return raw
+
     def _run_series_technique(self, request: AnalysisRequest, plan: ProjectPlan, steps: tuple[Mapping[str, object], ...]) -> ProjectWorkflowRun:
         if len(steps) != 1:
             return self._blocked_project_run(plan, "mixed_technique_inputs")
@@ -963,7 +1061,16 @@ class ProjectWorkflowService:
         manifest = (
             {"workflow_id": _IR_TEMPERATURE_SERIES_WORKFLOW, "path": str(source_paths[0])}
             if provider_id == _IR_TEMPERATURE_SERIES_WORKFLOW
-            else {"workflow_id": _SERIES_WORKFLOW, "technique": technique, "paths": [str(path) for path in source_paths]}
+            else {
+                "workflow_id": _SERIES_WORKFLOW,
+                "technique": technique,
+                "paths": [str(path) for path in source_paths],
+                **(
+                    {"portable_exports": plan_step["portable_exports"]}
+                    if isinstance(plan_step.get("portable_exports"), (list, tuple))
+                    else {}
+                ),
+            }
         )
         proposal = adapter.propose_recipe(manifest)
         if proposal.recipe is None:
@@ -1186,6 +1293,84 @@ class ProjectWorkflowService:
     def _save_working_evidence(self, index: WorkingEvidenceIndex) -> None:
         self.workspace.write_json(self.workspace.evidence_dir / "working.json", index.to_dict())
 
+    @staticmethod
+    def _portable_export_manifest(request: AnalysisRequest) -> PortableExportBatchManifest | None:
+        raw = request.parameters.get("portable_export_manifest")
+        if raw is None:
+            return None
+        if isinstance(raw, PortableExportBatchManifest):
+            return raw
+        if not isinstance(raw, Mapping):
+            raise TypeError("portable_export_manifest must be a mapping")
+        return PortableExportBatchManifest.from_dict(raw)
+
+    def _portable_manifest_declarations(
+        self,
+        manifest: PortableExportBatchManifest | None,
+        graph: ResearchGraph,
+        data_scope: tuple[str, ...],
+    ) -> dict[str, dict[str, str]]:
+        """Resolve a project manifest to indexed artifacts without guessing scope."""
+        if manifest is None:
+            return {}
+        indexed = {
+            self._portable_path_key(self.workspace.root / artifact.relative_path): artifact
+            for artifact in graph.artifacts
+        }
+        scoped = tuple(
+            (
+                self.workspace.root / path if not Path(path).is_absolute() else Path(path)
+            ).resolve(strict=False)
+            for path in data_scope
+        )
+
+        def in_scope(path: Path) -> bool:
+            if not scoped:
+                return True
+            return any(path == item or item in path.parents for item in scoped)
+
+        declarations: dict[str, dict[str, str]] = {}
+        resolved_raw_keys: set[str] = set()
+        for entry in manifest.entries:
+            raw_path = self._resolve_project_manifest_path(entry.raw_source)
+            raw_key = self._portable_path_key(raw_path)
+            if raw_key in resolved_raw_keys:
+                raise ValueError("portable export manifest source is duplicated")
+            resolved_raw_keys.add(raw_key)
+            artifact = indexed.get(raw_key)
+            if artifact is None or not in_scope(raw_path):
+                raise ValueError("portable export manifest source is not indexed in the request scope")
+            if artifact.technique != manifest.technique:
+                raise ValueError("portable export manifest technique does not match its artifact")
+            if entry.raw_sha256 and entry.raw_sha256 != artifact.sha256:
+                raise ValueError("portable export manifest raw hash does not match inventory")
+            declaration = {
+                "raw_source": str(raw_path),
+                "export_path": str(self._resolve_project_manifest_path(entry.export_path)),
+                "exporter": entry.exporter,
+            }
+            declarations[artifact.relative_path] = declaration
+        selected_scope = {
+            artifact.relative_path
+            for artifact in graph.artifacts
+            if artifact.technique == manifest.technique
+            and in_scope(self.workspace.root / artifact.relative_path)
+        }
+        if set(declarations) != selected_scope:
+            raise ValueError("portable export manifest must cover the complete technique scope")
+        export_keys = {self._portable_path_key(value["export_path"]) for value in declarations.values()}
+        if len(export_keys) != len(declarations):
+            raise ValueError("portable export manifest exports must be unique")
+        return declarations
+
+    def _resolve_project_manifest_path(self, value: str | Path) -> Path:
+        path = Path(value).expanduser()
+        return (self.workspace.root / path).resolve(strict=False) if not path.is_absolute() else path.resolve(strict=False)
+
+    @staticmethod
+    def _portable_path_key(value: str | Path) -> str:
+        return str(Path(value).expanduser().resolve(strict=False)).casefold()
+
     def _persist_blocked_plan(self, request: AnalysisRequest, reason: str) -> ProjectPlan:
         plan = ProjectPlan.create(
             request_hash=request.request_hash,
@@ -1359,8 +1544,36 @@ class ProjectWorkflowService:
     @staticmethod
     def _techniques_from_scope(scope: tuple[str, ...]) -> list[str]:
         text = " ".join(scope).lower()
-        aliases = (("waxs", "waxs"), ("saxs", "saxs"), ("ftir", "ir"), ("ir", "ir"), ("dsc", "dsc"))
-        return sorted({technique for marker, technique in aliases if marker in text})
+        aliases = (
+            ("size exclusion chromatography", "sec"),
+            ("gel permeation chromatography", "sec"),
+            ("rheology", "rheology"),
+            ("rheometer", "rheology"),
+            ("mechanical testing", "mechanics"),
+            ("mechanics", "mechanics"),
+            ("tensile test", "mechanics"),
+            ("compression test", "mechanics"),
+            ("flexural test", "mechanics"),
+            ("waxs", "waxs"),
+            ("saxs", "saxs"),
+            ("ftir", "ir"),
+            ("ir", "ir"),
+            ("dsc", "dsc"),
+            ("tga", "tga"),
+            ("dma", "dma"),
+            ("gpc", "sec"),
+            ("sec", "sec"),
+        )
+        return sorted(
+            {
+                technique
+                for marker, technique in aliases
+                if re.search(
+                    rf"(?<![a-z0-9]){re.escape(marker)}(?![a-z0-9])",
+                    text,
+                )
+            }
+        )
 
     @staticmethod
     def _request_mentions_dsc(request: AnalysisRequest) -> bool:

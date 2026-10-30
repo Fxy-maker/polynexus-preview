@@ -45,6 +45,159 @@ def build_parser() -> argparse.ArgumentParser:
     pn.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
     pn.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
+    pt = sub.add_parser("tga", help="TGA")
+    pt.add_argument("input")
+    pt.add_argument("-o", "--output", default="")
+    pt.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    pt.add_argument("--analysis-spec", default=None, help="JSON file containing explicit TGA kinetics semantics")
+    pt.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
+
+    p_dma = sub.add_parser("dma", help="DMA/DMTA")
+    p_dma.add_argument("input")
+    p_dma.add_argument("-o", "--output", default="")
+    p_dma.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_dma.add_argument("--analysis-spec", default=None, help="JSON file containing explicit DMA TTS/master-curve semantics")
+    p_dma.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
+
+    p_rheology = sub.add_parser("rheology", help="Rheology")
+    p_rheology.add_argument("input")
+    p_rheology.add_argument("-o", "--output", default="")
+    p_rheology.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_rheology.add_argument(
+        "--analysis-spec",
+        default=None,
+        help="JSON file containing explicit rheology yield/LVE/advanced model semantics",
+    )
+    p_rheology.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
+
+    p_mechanics = sub.add_parser("mechanics", help="Mechanical testing")
+    p_mechanics.add_argument("input")
+    p_mechanics.add_argument("-o", "--output", default="")
+    p_mechanics.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_mechanics.add_argument("--analysis-spec", default=None, help="JSON file containing explicit mechanics geometry or advanced-model semantics")
+    p_mechanics.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
+
+    p_sec = sub.add_parser("sec", help="SEC/GPC")
+    p_sec.add_argument("input")
+    p_sec.add_argument("-o", "--output", default="")
+    p_sec.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_sec.add_argument(
+        "--analysis-spec",
+        default=None,
+        help="JSON file containing explicit SEC/GPC calibration and distribution semantics",
+    )
+    p_sec.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
+
+    p_gpc = sub.add_parser("gpc", help="GPC (alias for SEC)")
+    p_gpc.add_argument("input")
+    p_gpc.add_argument("-o", "--output", default="")
+    p_gpc.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_gpc.add_argument(
+        "--analysis-spec",
+        default=None,
+        help="JSON file containing explicit SEC/GPC calibration and distribution semantics",
+    )
+    p_gpc.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
+
+    p_inspect = sub.add_parser("inspect-format", help="Inspect a raw input format and reader route")
+    p_inspect.add_argument("input")
+    p_inspect.add_argument(
+        "--technique",
+        default="unknown",
+        choices=["unknown", "saxs", "waxs", "dsc", "ir", "nmr", "tga", "dma", "rheology", "mechanics", "sec", "gpc"],
+    )
+    p_inspect.add_argument("--json", action="store_true", help="Print the inspection contract as JSON")
+
+    p_portable = sub.add_parser(
+        "portable-export",
+        help="Convert a portable vendor export while retaining the opaque raw source binding",
+    )
+    p_portable.add_argument("raw_source", help="Opaque vendor/instrument source file or directory")
+    p_portable.add_argument("export", help="Portable CSV/XLSX/ODS export")
+    p_portable.add_argument(
+        "--technique",
+        required=True,
+        choices=["saxs", "waxs", "dsc", "ir", "nmr", "tga", "dma", "rheology", "mechanics", "sec", "gpc"],
+    )
+    p_portable.add_argument("--exporter", required=True, help="Instrument software/exporter name")
+    p_portable.add_argument("--output", default="", help="Optional ComputeRun output directory")
+    p_portable.add_argument("--mapping-proposal", default=None, help="Optional mapping proposal JSON")
+    p_portable.add_argument("--convert-only", action="store_true", help="Only emit canonical conversion; do not execute a provider")
+    p_portable.add_argument("--json", action="store_true", help="Print the shared conversion/run contract as JSON")
+
+    p_validate = sub.add_parser(
+        "validate",
+        help="Compare two persisted public validation projections through the shared harness",
+    )
+    p_validate.add_argument("operation", choices=["compare"], help="Validation operation")
+    p_validate.add_argument("--case", required=True, help="ValidationCase JSON path")
+    p_validate.add_argument("--first-output", required=True, help="First public result JSON path")
+    p_validate.add_argument("--second-output", required=True, help="Second public result JSON path")
+    p_validate.add_argument("--raw-hash-before", default=None, help="Raw SHA-256 before replay")
+    p_validate.add_argument("--raw-hash-after", default=None, help="Raw SHA-256 after replay")
+    p_validate.add_argument("--json", action="store_true", help="Print the report as JSON")
+
+    p_project_validate = sub.add_parser(
+        "project-validate",
+        help="Run a project validation manifest and persist its report under .polynexus/validation",
+    )
+    p_project_validate.add_argument("--project-root", required=True, help="Project workspace root")
+    p_project_validate.add_argument("--manifest", required=True, help="Project validation manifest JSON path")
+    p_project_validate.add_argument("--json", action="store_true", help="Print the report as JSON")
+
+    p_public_validate = sub.add_parser(
+        "public-validate",
+        help="Replay a hash-bound external public validation manifest",
+    )
+    p_public_validate.add_argument("--manifest", required=True, help="Public replay manifest JSON path")
+    p_public_validate.add_argument(
+        "--data-root",
+        required=True,
+        help="External validation data root; archive paths must stay below it",
+    )
+    p_public_validate.add_argument(
+        "--project-root",
+        default=None,
+        help="Optional project root for .polynexus/validation/latest.json",
+    )
+    p_public_validate.add_argument("--json", action="store_true", help="Print the report as JSON")
+
+    p_validation_suite = sub.add_parser(
+        "validation-suite",
+        help="Aggregate existing public replay and all-module smoke evidence",
+    )
+    p_validation_suite.add_argument(
+        "--public-replay-manifest",
+        default=None,
+        help="Optional hash-bound public replay manifest JSON path",
+    )
+    p_validation_suite.add_argument(
+        "--data-root",
+        default=None,
+        help="External validation data root for the public replay manifest",
+    )
+    p_validation_suite.add_argument(
+        "--smoke-report",
+        default=None,
+        help="Optional existing all-module smoke report JSON path",
+    )
+    p_validation_suite.add_argument(
+        "--suite-id",
+        default="polynexus-validation-suite-v1",
+        help="Stable aggregate report identifier",
+    )
+    p_validation_suite.add_argument(
+        "--project-root",
+        default=None,
+        help="Optional project root; persists under .polynexus/validation/suite.json",
+    )
+    p_validation_suite.add_argument(
+        "--output",
+        default=None,
+        help="Optional explicit JSON output path when no project root is supplied",
+    )
+    p_validation_suite.add_argument("--json", action="store_true", help="Print the report as JSON")
+
     pg = sub.add_parser("gui", help="AI tuning convergence viewer")
     pg.add_argument("--dry-run", action="store_true", help="Print AI tuning counts without opening a window")
     pg.add_argument("--db", default=None, help="Path to polynexus_samples.db")
@@ -82,12 +235,13 @@ def build_parser() -> argparse.ArgumentParser:
     pe.add_argument("--evaluation", required=True, help="AnalysisPlanEvaluation JSON path")
 
     paw = sub.add_parser("agent-workflow", help="Machine-readable agent workflow operations")
-    paw.add_argument("operation", choices=["inspect", "propose", "run", "validate", "export"])
+    paw.add_argument("operation", choices=["inspect", "propose", "run", "validate", "validate-project", "export"])
     paw.add_argument("--manifest", help="External workflow manifest JSON")
     paw.add_argument("--recipe", help="Persisted recipe JSON for deterministic replay")
     paw.add_argument("--run", help="Persisted run JSON for validate or export")
     paw.add_argument("--output-dir", default=None, help="Output directory for run/export operations")
     paw.add_argument("--export-dir", default=None, help="Destination for an exported workflow bundle")
+    paw.add_argument("--project-root", default=None, help="Project root for validate-project")
 
     ppw = sub.add_parser("project-workflow", help="Codex project evidence workflow")
     ppw.add_argument(
@@ -104,6 +258,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--request",
         default=None,
         help="AnalysisRequest JSON path (required for plan, or run without --plan)",
+    )
+    ppw.add_argument(
+        "--portable-export-manifest",
+        default=None,
+        help="Content-hashed project portable-export batch manifest JSON",
     )
     ppw.add_argument(
         "--paths",
@@ -177,7 +336,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     pb = sub.add_parser("batch", help="Batch-analyze all supported files in a directory")
     pb.add_argument("input_dir", nargs="?", help="Input directory path")
-    pb.add_argument("--technique", choices=["saxs", "waxs", "dsc", "ir", "nmr"], help="Technique to analyze")
+    pb.add_argument(
+        "--technique",
+        choices=["saxs", "waxs", "dsc", "ir", "nmr", "tga", "dma", "rheology", "mechanics", "sec", "gpc"],
+        help="Technique to analyze",
+    )
     pb.add_argument("--pattern", default="*", metavar="GLOB", help="Filename glob filter, default *")
     pb.add_argument("--workers", type=int, default=1, metavar="N", help="Parallel worker count, default 1")
     pb.add_argument("--output-dir", metavar="DIR", help="Batch output directory, default same as input directory")

@@ -8,6 +8,11 @@ from typing import Any
 
 from polynexus.core.agent_workflow import AgentWorkflowService
 from polynexus.core.agent_workflow.models import AnalysisRecipe, AnalysisRun
+from polynexus.core.project_workflow.validation import (
+    ProjectValidationEntry,
+    run_project_validation_batch,
+)
+from polynexus.core.project_workflow.workspace import ProjectWorkspace
 
 
 def run_agent_workflow(args: Any, *, service: AgentWorkflowService | None = None) -> int:
@@ -32,6 +37,8 @@ def run_agent_workflow(args: Any, *, service: AgentWorkflowService | None = None
             return _emit({"operation": "propose", "status": "blocked", "reason_codes": ["workflow_id_missing"]})
         proposal = workflow_service.propose_recipe(workflow_id, payload)
         return _emit({"operation": "propose", **proposal.to_dict()})
+    if args.operation == "validate-project":
+        return _run_project_validation(payload, args)
     if not getattr(args, "output_dir", None):
         return _emit({"operation": args.operation, "status": "blocked", "reason_codes": ["output_dir_required"]})
     run_dir = Path(args.output_dir).resolve()
@@ -76,7 +83,7 @@ def run_agent_workflow(args: Any, *, service: AgentWorkflowService | None = None
 
 def _emit(payload: dict[str, Any]) -> int:
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True, allow_nan=False))
-    return 0 if payload.get("status") in {"ready", "completed", "review_required"} else 2
+    return 0 if payload.get("status") in {"ready", "completed", "review_required", "passed"} else 2
 
 
 def _write_run(path: Path, run: AnalysisRun) -> None:
@@ -92,3 +99,36 @@ def _load_recipe(path: str | None) -> AnalysisRecipe | None:
         return AnalysisRecipe.from_dict(payload)
     except (OSError, ValueError, TypeError, KeyError):
         return None
+
+
+def _run_project_validation(payload: dict[str, Any] | None, args: Any) -> int:
+    """Run a JSON-only project validation manifest through the shared batch runner."""
+    try:
+        if payload is None:
+            raise ValueError("manifest_invalid")
+        root_value = getattr(args, "project_root", None)
+        if not root_value:
+            raise ValueError("project_root_required")
+        raw_entries = payload.get("entries")
+        if not isinstance(raw_entries, list):
+            raise ValueError("entries_required")
+        entries = tuple(ProjectValidationEntry.from_dict(item) for item in raw_entries)
+        batch = run_project_validation_batch(entries)
+        report_path = ProjectWorkspace.open(root_value).write_validation_batch(batch)
+        return _emit(
+            {
+                "operation": "validate-project",
+                **batch.to_dict(),
+                "report_path": str(report_path),
+            }
+        )
+    except (OSError, TypeError, ValueError, KeyError, StopIteration) as exc:
+        reason = str(exc).strip() or type(exc).__name__
+        return _emit(
+            {
+                "operation": "validate-project",
+                "status": "failed",
+                "reason_codes": ["project_validation_manifest_invalid"],
+                "error": reason,
+            }
+        )

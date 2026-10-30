@@ -18,6 +18,7 @@ from polynexus.core.project_workflow import (
     AnalysisPlan,
     AnalysisPlanEvaluation,
     PaperBrief,
+    PortableExportBatchManifest,
     build_manuscript_plan,
     project_analysis_plan_evaluation,
 )
@@ -112,6 +113,7 @@ def run_project_workflow(args: Any, *, service: ProjectWorkflowService | None = 
 
     if operation == "plan":
         request = _load_request(getattr(args, "request", None))
+        request = _attach_portable_export_manifest(request, getattr(args, "portable_export_manifest", None))
         if request is None:
             return _emit(operation, "blocked", ["request_invalid"])
         try:
@@ -123,6 +125,7 @@ def run_project_workflow(args: Any, *, service: ProjectWorkflowService | None = 
     if operation == "run":
         plan = _load_plan(getattr(args, "plan", None))
         request = _load_request(getattr(args, "request", None))
+        request = _attach_portable_export_manifest(request, getattr(args, "portable_export_manifest", None))
         if plan is None and request is None:
             return _emit(operation, "blocked", ["request_or_plan_required"])
         try:
@@ -219,6 +222,30 @@ def _load_request(path: str | None) -> AnalysisRequest | None:
         return AnalysisRequest.from_dict(value)
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def _attach_portable_export_manifest(
+    request: AnalysisRequest | None,
+    manifest_path: str | None,
+) -> AnalysisRequest | None:
+    """Attach one validated batch manifest without creating a new result store."""
+    if request is None or not manifest_path:
+        return request
+    try:
+        payload = json.loads(Path(manifest_path).expanduser().read_text(encoding="utf-8"))
+        manifest = PortableExportBatchManifest.from_dict(payload)
+    except (OSError, UnicodeError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    parameters = dict(request.parameters)
+    parameters["portable_export_manifest"] = manifest.to_dict()
+    return AnalysisRequest.create(
+        question=request.question,
+        purpose=request.purpose,
+        requested_outputs=request.requested_outputs,
+        data_scope=request.data_scope,
+        context_sources=request.context_sources,
+        parameters=parameters,
+    )
 
 
 def _load_figure_selection(path: str | None) -> FigureSelectionRequest | None:

@@ -1,5 +1,381 @@
 # Active Work
 
+## Public-preview GitHub closeout — prepared, merge blocked (2026-10-13)
+
+- Prepared the 50 completed commits after public `f63b3586` in an isolated
+  managed checkout, with refreshed diagnostic capability guidance and CI
+  triggers for `research-preview-v0.1`.
+- Follow-up repair closes all 38 failing nodes (38/38 replay), corrects
+  canonical/export/signed-input fixtures, repairs SAXS lost-feature fallback,
+  GUI row hydration/reflow/logging/selection, and Python 3.11 TGA defaults.
+- Final local structured integration verification passes 4995 with 50 skips,
+  quality 313, preprocessing 157, cumulative Ruff/compile, whitespace,
+  standalone Pyright (0 errors/warnings), and boundary audit. One earlier
+  transient Qt binding failure is documented; editor test teardown now flushes
+  deferred deletion and Python callback cycles before the next constructor.
+- Clean CI passed quality 313/preprocessing 157 but stopped full-suite
+  collection on the absent optional MCP dependency. CI/development full-suite
+  installs now request `dev,automation`; workflow/MCP tests pass 6, with
+  final-head Windows/Python 3.11 CI pending.
+- The subsequent clean install selected MCP 2.x, which removed the server's
+  FastMCP 1.x import. The automation extra now pins `mcp>=1.0,<2`; focused
+  workflow/MCP coverage passes 7 and final-head CI is pending.
+- Clean full-suite failures then exposed a missing `python-docx` declaration,
+  Matplotlib/FreeType overflow for extreme initial text coordinates, and a
+  symlink test that contradicted raw-input rejection. The project dependency,
+  restored text data-limit handling, and rejection assertion are repaired;
+  focused coverage passes 8 and final-head GitHub run `41034602895` passes the
+  complete Windows/Python 3.11 quality gate.
+- Draft PR #1 is the delivery boundary. Human architecture/scientific review
+  is still required before merge; actionable recommendations are in
+  `docs/acceptance/2026-10-13-preview-human-review.md`. Existing inferred DSC
+  preparation roles, hostile-code OS isolation, independent validation and
+  capability promotion remain open. ReferenceEvidence remains proposed.
+- Task: `docs/agent/tasks/2026-10-13-research-preview-github-closeout.md`;
+  evidence: `docs/acceptance/2026-10-13-research-preview-github-closeout.md`.
+  Follow-up: `docs/agent/tasks/2026-10-13-preview-failure-repair.md` and its
+  matching acceptance record. GitHub CI is tracked by the existing PR checks.
+
+## Cross-module validation suite aggregation — implementation complete, review required (2026-09-14)
+
+- Added `ValidationSuiteEntry`/`ValidationSuiteReport` and a safe
+  `validation-suite` CLI that aggregate the existing public replay batch and
+  all-module smoke report without executing manifest-provided code or copying
+  raw data.
+- The report distinguishes deterministic replay from smoke-only and
+  unavailable input, preserves source/report hashes and limitations, and can be
+  persisted under `.polynexus/validation/suite.json`.
+- Focused coverage passes 5. A real external run produced 5 deterministic
+  replay, 4 smoke-only, and 6 unavailable entries across 10 techniques with
+  `complete_with_review`; structured verification passes quality 313,
+  preprocessing 157, Ruff, compile, and whitespace.
+- This layer does not turn parser smoke output into scientific validation or
+  capability promotion. Standards/negative controls, uncertainty, and human
+  scientific review remain required.
+- Task: `docs/agent/tasks/2026-09-14-validation-suite-aggregation-v1.md`.
+
+## Advanced diagnostic model suite — implementation complete, review required (2026-09-13)
+
+- Added explicit sample-neutral TGA multi-rate kinetics, DMA TTS/master-curve,
+  rheology thixotropy/Cox–Merz/creep/relaxation/TTS, and mechanics
+  cycle/fatigue/creep/fracture routes. Local unavailable states do not block
+  independent calculations.
+- Canonical measurement/condition bindings, method/parameter/unit provenance,
+  manifest projection, diagnostic FigureDefinitions, edit-ready data,
+  SVG/PNG/PDF export, and V2 sidecars are retained through the shared chain.
+- Direct, CLI, Agent replay, and single-input project requests now produce the
+  same canonical hash and metric manifest for the same source/spec. Focused
+  coverage passes 45; structured verification passes quality 313,
+  preprocessing 157, Ruff, compile, and whitespace.
+- Independent instrument/material replay, standards/negative controls, formal
+  uncertainty evidence, capability promotion, cross-file grouped-canonical
+  assembly, and human scientific review remain open. One unrelated existing
+  Netzsch short-signature fixture fails in a broader compatibility selection.
+- Task: `docs/agent/tasks/2026-09-13-advanced-models-complete-suite.md`.
+
+## SEC/GPC explicit calibration and distribution — implementation complete, review required (2026-09-13)
+
+- Added immutable `SECCalibrationSpec` requiring an explicit response channel,
+  calibration coordinates, positive molar masses, calibration ID, standard
+  source, standard IDs, distribution mode, and optional coordinate/unit
+  semantics. Duplicate, non-monotonic, insufficient, or invalid standards
+  fail closed.
+- `sec.processing.v1` now fits declared `log10(M)` calibration without
+  extrapolation and computes `Mn`, `Mw`, `Mz`, and `dispersity` for explicit
+  mass- or number-response semantics. It also retains calibrated coordinate,
+  molar-mass, response, and normalized distribution arrays plus calibration
+  coefficients/residuals. Existing peak/integral/source metrics are unchanged.
+- `ComputeRunService`, canonical templates, SEC/GPC CLI, and metric manifests
+  share the same `sec_analysis` payload. Without that payload, molecular-weight
+  moments remain `unavailable`; missing/invalid semantics affect only those
+  moments and do not block descriptive SEC calculation.
+- Focused SEC/CLI coverage passes 22 tests (one unrelated pre-existing format
+  inspection expectation was deselected); structured verification passes Ruff,
+  compile, type baseline, quality 313, preprocessing 157, and whitespace.
+  Detector response-factor models, vendor calibration readers, standards and
+  negative-control replay, formal uncertainty, capability promotion, and human
+  scientific review remain open.
+- Task: `docs/agent/tasks/2026-09-13-sec-gpc-calibration-distribution.md`.
+
+## Diagnostic measurement-uncertainty contract — implementation complete, review required (2026-09-12)
+
+- Added shared immutable `UncertaintyComponent` and `UncertaintySummary` DTOs
+  for repeatability, resolution, baseline, calibration, fit, and other
+  explicitly supplied contributions. Components preserve units, methods,
+  source metadata, input metric bindings, and optional degrees of freedom.
+- Summaries deterministically combine standard-deviation/standard-uncertainty
+  components by RSS and optionally derive expanded uncertainty from an explicit
+  coverage factor. Missing evidence is represented as `unavailable` and never
+  blocks or changes a metric. Schema/value-model/hash tampering fails closed.
+- ComputeResult and ProviderResultInput now serialize nested DTOs through the
+  existing shared uncertainty projection, so metric manifests and evidence
+  packaging retain the same object. Legacy free-form uncertainty mappings stay
+  compatible.
+- Focused contract/cross-entry coverage passes 63; task verification passes
+  Ruff, compile, type baseline, quality 313, preprocessing 157, and
+  whitespace. Provider-specific adapters, standards/negative controls,
+  metrology validation, capability promotion, and human scientific review
+  remain open.
+- Task: `docs/agent/tasks/2026-09-12-uncertainty-contract-foundation.md`.
+
+## Rheology advanced models phase 1 — implementation complete, review required (2026-09-08)
+
+- Added explicit immutable `RheologyAnalysisSpec` branches for Bingham and
+  Herschel–Bulkley yield-stress fits plus strain-sweep LVE plateau and
+  log-strain modulus-crossover candidates. Units, windows, thresholds, source
+  measurement IDs, methods, and parameters are retained in the shared result
+  and metric manifest; source arrays are never overwritten.
+- Plateau and crossover calculations are locally independent: a failed
+  plateau does not suppress a valid crossover, continuous exact crossovers are
+  de-duplicated, and multiple candidates are marked as diagnostic warnings.
+  Unknown axis/modulus units can be completed only by an explicit spec.
+- Canonical templates and shared ComputeRun carry the request; Agent replay
+  reapplies the validated rheology branch after source reconversion, and CLI
+  `--analysis-spec` uses the same route. Focused Core/ComputeRun/Agent/CLI
+  coverage passes 78; task verification passes Ruff, compile, quality 313,
+  preprocessing 157, and whitespace.
+- These are diagnostic candidates only. Independent instrument replay,
+  standards/negative controls, formal uncertainty, and human scientific review
+  remain required before capability promotion. Thixotropy, Cox–Merz,
+  creep/relaxation, TTS/master curves, and vendor readers remain follow-up.
+- Task: `docs/agent/tasks/2026-09-08-rheology-advanced-models-phase1.md`.
+
+## Portable-export project closure — implementation complete, review required (2026-09-08)
+
+- Added immutable `PortableExportBatchManifest`/entry DTOs with content hashes,
+  unique raw/export bindings, optional raw SHA-256 checks, and JSON round-trip
+  validation. Project planning resolves each declaration against the indexed,
+  in-scope raw inventory and rejects duplicate resolved paths, incomplete
+  technique scope, foreign sources, and hash drift before adapters/providers.
+- The existing project plan/run persistence carries the manifest and each
+  per-file portable binding through the existing single/series adapters,
+  Agent recipe replay, `CanonicalExperiment`, and `ComputeRun` objects. The
+  project-workflow CLI accepts the same manifest JSON; no alternate result or
+  provenance store was introduced.
+- A shared fixture proves equivalent canonical template identity, raw/export
+  hashes, exporter, and per-file binding across GUI `BatchWorker`, project
+  CLI/resume, and Agent series replay. Focused cross-entry matrix passes 99;
+  task verifier passes quality 313, preprocessing 157, and whitespace.
+- Native grouped directory semantics, arbitrary-name GUI export maps, private
+  vendor decoding, and architecture/scientific review remain outside this
+  closure and require follow-up/human review.
+- Task: `docs/agent/tasks/2026-09-08-portable-export-project-closure.md`.
+
+## Series and batch portable-export binding — implementation complete, review required (2026-09-08)
+
+- Same-technique project series now bind every raw input to exactly one
+  portable table before conversion. List declarations name `raw_source`
+  explicitly, so user order cannot be silently mismatched after path sorting;
+  mapping declarations must be complete, unique, and source-consistent.
+- Agent replay selects the portable step for its artifact index; GUI batch
+  preflights a raw-stem-to-export directory map before it starts a provider,
+  and each pair reaches its own shared `CanonicalExperiment`/`ComputeRun`
+  projection while retaining the raw artifact identity.
+- Native grouped directory routes explicitly reject this batch export-directory
+  declaration. GUI visual review plus architecture/scientific review remain
+  required; arbitrary-name GUI export maps and native grouped portable
+  sequences are future work.
+- Focused cross-entry regression passes 79 tests. Task:
+  `docs/agent/tasks/2026-09-08-series-portable-export-binding.md`.
+
+## GUI portable-export import binding — implementation complete, review required (2026-09-08)
+
+- The GUI import dialog now offers an optional portable-export table and
+  exporter label for file inputs. The selection is carried by the existing
+  `ImportSuggestion`/import state rather than a GUI-only result object.
+- `AnalysisWorker` validates the declaration, binds the raw artifact through
+  `PortableExportBinding`/the shared canonical registry, and sends the export
+  table through `ComputeRunService` while retaining the raw source artifact
+  identity. Directory/batch imports and ordinary imports are unchanged.
+- Focused GUI/worker/Agent coverage passes `41`; Ruff, compile, and diff checks
+  pass. GUI visual review, architecture review, and scientific review remain
+  required; private vendor decoding is still unsupported.
+- Task: `docs/agent/tasks/2026-09-08-gui-portable-export-import.md`.
+
+## Agent portable-export recipe replay — implementation complete, review required (2026-09-08)
+
+- AgentWorkflow now admits an opaque raw artifact only when a persisted
+  `portable_export` declaration is structurally valid, the raw identity still
+  matches, and the export exists. Replay reconverts the export through the
+  shared converter, compares the complete canonical-template hash and
+  converter ID, then executes the exported table through the shared
+  ComputeRun while retaining the raw artifact provenance binding.
+- Raw/export mutation, missing export, invalid exporter, foreign raw source,
+  and canonical tampering fail closed before provider execution. Existing
+  non-portable replay remains on its prior path. GUI intake is still a later
+  task; private vendor bytes are not decoded.
+- Focused Agent/project replay coverage passes 50; structured verification
+  passes Ruff, compile, quality `313`, preprocessing `157`, and whitespace.
+- Task: `docs/agent/tasks/2026-09-08-agent-portable-export-replay.md`.
+
+## Source-bound portable-export entry points — implementation complete, replay follow-up (2026-09-07)
+
+- Added `polynexus portable-export <raw> <export> --technique ... --exporter ...`
+  over the existing `PortableExportBinding` and canonical converter. JSON mode
+  emits independent raw/export hashes, the canonical template, and optionally
+  the shared `ComputeRun` projection; provider stdout is suppressed in JSON
+  mode so the output remains machine-readable.
+- Project/Codex single-input manifests may declare `portable_export` with an
+  exported table and exporter name. The proposal retains the opaque raw
+  artifact, marks it `review_required`, and persists the same canonical
+  converter/template metadata. Invalid declarations fail closed.
+- The protected pre-existing `agent_workflow/service.py` changes were left
+  untouched. Full recipe replay of opaque raw sources through portable exports
+  remains a follow-up because that service still performs raw inspection before
+  execution. Private Netzsch/Origin decoding is still unsupported.
+- Focused entry-point/project coverage passes `41`; structured verification
+  passes Ruff, compile, quality `313`, preprocessing `157`, and whitespace.
+- Task: `docs/agent/tasks/2026-09-07-portable-export-entrypoints.md`.
+
+## Layered format-inspection and reader-plugin foundation — implementation complete, review required (2026-09-06)
+
+- Added a shared immutable `FormatInspection` contract and a closed registry of declarative reader capabilities.  It separates bounded container detection, reader availability, canonical-conversion readiness, and unassessed scientific mapping; it never dynamically executes plug-in code.
+- Direct `ComputeRun` records now preserve the source-bound inspection and prevent recognized opaque Netzsch DSC/TGA, vendor DMA, and Origin inputs from reaching legacy providers without a declared reader.  Unknown inputs retain compatibility behavior.  A mismatch in declared technique adds a confirmation action but cannot weaken a missing-reader boundary; Rigaku `.raw` recognition also requires its `RAW1.01` signature.
+- `polynexus inspect-format <input> --technique <technique> --json` exposes the same JSON DTO as Core. Portable-table, image, Bruker, and existing Rigaku routes remain candidates only: inspection does not assert column, unit, calibration, or polymer semantics.
+- Public validation manifest passes with 12 local entries; focused/shared coverage passes `139 passed, 4 skipped`; structured verification passes Ruff, compile, quality `313`, preprocessing `157`, and whitespace checks. Vendor decoder implementation, isolated workers/licensing, GUI intake, instrument replay, uncertainty, and scientific capability review remain open.
+- Task: `docs/agent/tasks/2026-09-06-format-ingestion-plugin-foundation.md`.
+
+## Public validation-data pack — implementation complete, scientific review required (2026-09-05)
+
+- Added `docs/validation/public-validation-pack.json` and
+  `scripts/validation_pack.py`. The committed source manifest records source
+  URL/DOI/license/checksum, material context, rawness, expected Core route,
+  and limitations; downloads, reports, and SHA-256 lock manifest are external
+  at `D:\PolyNexus-validation-data`.
+- Complete, checksum-verified archive inspections cover TGA, three DMA
+  archives, two FTIR archives, polymer NMR, one SAXS detector sequence, one
+  WAXS/XRD set, and a PLA/chitosan supplement. The archive report lists 8 TGA
+  vendor files, 130 DMA vendor files, 877 FTIR members, 127 NMR members, 2,163
+  SAXS TIFF frames, 1,920 WAXS DAT files, and 190 PLA/chitosan members.
+- DSC and a second SAXS archive remain candidates after incomplete Zenodo
+  transfers; their source checksum mismatch/missing state is explicit. SAXS
+  CuPd and WAXS gypsum inputs are format-only, not polymer scientific
+  validation. The PLA/chitosan archive has two Origin GPC projects but lacks a
+  portable chromatogram export; rheology still lacks a confirmed public raw
+  source.
+- The helper rejects unsafe paths, unverified licenses, missing checksum/route
+  metadata, local source-MD5 drift, and non-readable archives. No downloaded
+  archive is committed to Git. Formal replay cases, expected metrics,
+  tolerances, independent samples, and capability promotion remain follow-up.
+- Focused manifest tests pass 5; task verification passes quality 313 and
+  preprocessing 157. Task:
+  `docs/agent/tasks/2026-09-05-public-validation-pack.md`.
+
+## AI-readable capability validation readiness - 2026-09-05
+
+- The generic exploration promotion boundary now has an immutable,
+  content-addressed `CapabilityPromotionReadiness` projection. It classifies
+  the existing independent-replay, standard-sample, negative-control, and
+  uncertainty evidence as satisfied, missing, or failed, then returns only
+  deterministic AI preparation actions for unsatisfied gates.
+- Complete evidence means `ready_for_human_scientific_review`, never
+  automatic promotion. This remains generic across techniques; the regression
+  uses a TGA descriptor without adding a TGA-private promotion path.
+- AI may run work from admitted inputs and assemble the shared records. It
+  cannot invent real evidence, call capability promotion through readiness, or
+  bypass the final human scientific review.
+- Focused exploration/TGA coverage passes 22. Task:
+  `docs/agent/tasks/2026-09-05-ai-validation-readiness.md`.
+
+## TGA replay, anomaly matrix, and uncertainty boundary - 2026-09-05
+
+- `tga_validation` adds content-addressed, JSON-safe Core DTOs for replay
+  cases, observations, a synthetic algorithm-boundary report, and an explicit
+  unavailable measurement-uncertainty report. All cases replay the same
+  `analyze_tga_curve` function twice; source preservation, deterministic
+  outputs, axis semantics, expected local unavailable states, and event bounds
+  are retained per case.
+- The default matrix covers normal single/double-step and noisy curves plus
+  short, non-monotonic, nonpositive-mass, time-axis, unknown-unit, and
+  out-of-range-residue inputs. These are algorithm regression cases only, not
+  independent instrument/material validation.
+- Even evidence-ready input remains `unavailable` until a reviewed
+  measurement-uncertainty model exists; method sensitivity never becomes a
+  fabricated interval. Capability promotion still requires independent replay,
+  standards, negative controls, uncertainty evidence, and human scientific
+  review through the existing promotion gate.
+- Focused TGA/ComputeRun coverage passes 79 with 3 skips; structured
+  verification passes quality 313 and preprocessing 157.
+- Task: `docs/agent/tasks/2026-09-05-tga-replay-validation-boundary.md`.
+
+## TGA canonical method-sensitivity replay - 2026-09-05
+
+- Shared `MethodSensitivity` now declares bounded TGA dimensions for DTG
+  window/order and event thresholds. Explicit candidates are replayed against
+  the same admitted canonical template when the engine supports it.
+- Immutable dataclass configs use replacement rather than mutation; existing
+  mutable technique configs retain their prior behavior. Primary and each
+  candidate input mode are recorded separately in the shared sensitivity
+  parameters.
+- Failed or invalid candidates remain explicit `None` values with warnings;
+  Core never selects a winning parameter and sensitivity is not measurement
+  uncertainty.
+- Focused TGA sensitivity/service coverage passes 69 with 3 skips; task
+  verification passes quality 313 and preprocessing 157.
+- Task: `docs/agent/tasks/2026-09-05-tga-method-sensitivity-replay.md`.
+
+## TGA normalization, DTG, and event candidates - 2026-09-05
+
+- The canonical TGA route now preserves the source curve while adding separate
+  normalized-mass, locally polynomial-smoothed mass, and DTG series. Method
+  parameters, canonical axis units, sign convention, and boundary handling are
+  carried into the shared metric manifest.
+- Positive DTG peaks produce material-neutral event candidates with canonical
+  index bounds, candidate onset/peak/endset coordinates, interval mass loss,
+  prominence, and boundary warnings. Final recorded residue is automatic;
+  requested temperature-coordinate residue is interpolated without
+  extrapolation and requires a known temperature unit.
+- Nonpositive normalization references, short records, non-increasing axes,
+  time axes, unknown units, and out-of-range targets remain local unavailable
+  states. They do not block a valid descriptive `ComputeRun`.
+- Focused TGA coverage passes 11 tests; the shared ComputeRun/capability/
+  canonical matrix passes 88 with 3 skips. Structured verification passes
+  quality 313 and preprocessing 157.
+- Formal TGA capability promotion, uncertainty validation, independent
+  instrument/material replay, multi-rate kinetics, and a shared figure
+  provider remain review/follow-up work.
+- Task: `docs/agent/tasks/2026-09-05-tga-dtg-event-candidates.md`.
+
+## Sample-neutral TGA module foundation — 2026-09-04
+
+- Added a shared generic-table TGA route for temperature or time versus
+  mass/weight data. It emits `thermal_1d` measurements and the
+  `thermal_curve_1d.v1` template, preserving unknown units as warnings rather
+  than blocking calculation.
+- Registered a descriptive `TGAEngine` through the common BaseEngine,
+  ComputeRun, CLI, batch, and AI-tune entry points. Generic extrema/summary
+  capabilities are reused; DTG, stage segmentation, residue interpretation,
+  and kinetics remain unsupported.
+- Focused TGA/canonical/ComputeRun/CLI tests pass. Task-scoped structured
+  verification is blocked by pre-existing Ruff findings in `engine.py` outside
+  this change's new logic; targeted Ruff and `git diff --check` pass.
+- Task: `docs/agent/tasks/2026-09-04-tga-module-foundation.md`.
+
+## Sample-neutral DMA module foundation — 2026-09-04
+
+- Added a shared generic-table DMA/DMTA route for frequency, temperature, or
+  time versus an explicitly mapped modulus, damping, stress, or strain signal.
+  It emits `viscoelastic_1d` measurements and `dma_curve_1d.v1` while refusing
+  to silently choose among multiple candidate signals.
+- Registered the descriptive `DMAEngine` through the common BaseEngine,
+  ComputeRun, CLI, batch, and generic curve capability boundaries. Master
+  curves, shift factors, Tg interpretation, and publication validation remain
+  unsupported.
+- Focused DMA conversion/ambiguity/ComputeRun/CLI tests pass; the local
+  checkpoint is `aca03942`.
+- Task: `docs/agent/tasks/2026-09-04-dma-module-foundation.md`.
+
+## Generic curve canonical execution — 2026-09-04
+
+- TGA and DMA direct ComputeRuns now pass their validated
+  `CanonicalExperiment` directly to a narrow engine adapter. The adapter
+  consumes the canonical measurements and does not reparse raw tables; the
+  legacy direct `run_pipeline()` route remains available for compatibility.
+- Regression tests replace the engine `load()` method with a failure and prove
+  both prevalidated routes still complete. Structured verification passes
+  fully (quality `313`, preprocessing `157`).
+- Task: `docs/agent/tasks/2026-09-04-generic-curve-canonical-execution.md`.
+
 ## PolyNexus AI/Core design baseline formalized (2026-09-04)
 
 - Formalized the product baseline: AI explores broadly, Core computes
@@ -6392,3 +6768,375 @@ rows, and 4 pending evidence reviews. Acceptance:
   passed. Human review remains required for scientific semantics, capability
   maturity, redistribution rights, and the final public release branch.
 - Task: `docs/agent/tasks/2026-09-03-research-preview-open-source-preparation.md`.
+
+## ExplorationRun foundation — implementation complete, review required (2026-09-04)
+
+- Added immutable `ExplorationExecutorDescriptor`, `ExplorationRequest`, and
+  `ExplorationRun` contracts plus an explicit in-process registry/runner. A
+  request binds source artifact/content hashes, parameters, method intent, and
+  executor implementation hash; completed output must be a matching shared
+  `ProviderResultInput` with its metric manifest.
+- Unregistered, stale-implementation, malformed, source/technique/content
+  mismatched, and executor-failed attempts are retained as `needs_input` or
+  `failed` runs. Completed output is reprojected as `review_required`, and its
+  evidence adapter uses the existing `EvidenceItem` rather than an AI-private
+  result shape.
+- `ExplorationRunStore` writes immutable, hash-verified manifests under
+  `.polynexus/research/exploration/`. The scope explicitly excludes arbitrary
+  code execution, subprocesses, network execution, sandboxing, UI/CLI routing,
+  capability promotion, and direct evidence-package inclusion.
+- Focused coverage passed 11 tests; task-scoped verification passed Ruff,
+  compile, quality 313, preprocessing 157, and whitespace. Architecture,
+  security/sandbox design, and scientific semantics remain for human review.
+  Task: `docs/agent/tasks/2026-09-04-exploration-run-foundation.md`.
+
+## ExplorationRun expansion review — implementation complete, review required (2026-09-04)
+
+- Reviewed the bounded exploration foundation across security, architecture and
+  scientific semantics. Trusted in-process built-ins are conditionally usable;
+  exposing the registry to Codex/user code is not a sandbox and is not allowed.
+- P1 gates are canonical dataset admission, strict descriptor input/output
+  validation, real implementation/package hashing, and an isolated resource-
+  bounded worker before untrusted execution. P2 gates include environment/
+  dependency/seed identity, independent attempt IDs, invalid-manifest reporting,
+  package snapshot integration, evidence curation, and replay/standard-based
+  capability promotion criteria.
+- The detailed findings and staged recommendation are in
+  `docs/superpowers/specs/2026-09-04-exploration-run-review.md`; no runtime or
+  scientific results changed. Task:
+  `docs/agent/tasks/2026-09-04-exploration-run-review.md`.
+
+## ExplorationRun execution gates — implementation complete, review required (2026-09-04)
+
+The ExplorationRun path now requires a registered `CanonicalAdmission` derived
+from a `CanonicalDataset`/`CanonicalExperiment` and `RawArtifact`, validates
+descriptor input/output contracts before and after execution, and binds the
+request to the descriptor hash and implementation digest derived from loaded
+callable source/module bytes. `IsolatedExplorationRunner` uses a spawned worker
+with network denial, temporary-directory filesystem policy, output/wall-clock
+limits, and best-effort POSIX memory/CPU limits; it is explicitly not a hostile
+kernel container or VM sandbox. Automatic exploration records seed, attempt IDs,
+budget hash, duplicate suppression, and stop reason. Evidence requires explicit
+computed-metric selection, while promotion requires independent replay,
+standard, negative-control, uncertainty, and human scientific review evidence
+and creates a new capability version. Exploration storage now exposes invalid
+manifest diagnostics through `list_records()` rather than silently losing them.
+Focused coverage is 17 tests; task-scoped verifier passed quality 313 and
+preprocessing 157. CLI/GUI/Codex routing and formal package-member integration
+remain follow-up work; no provider algorithms or user data changed. Task:
+`docs/agent/tasks/2026-09-04-exploration-run-gates.md`.
+
+## DMA multi-signal derived core — implementation complete, review required (2026-09-05)
+
+- Supported generic DMA tables now preserve each unambiguously labelled
+  storage/loss modulus, tan-delta, and other recognized viscoelastic signal as
+  a separate canonical measurement. `E′/E″` and `G′/G″` retain tensile/shear
+  basis metadata; duplicate semantic signals still require input.
+- One deterministic group processor derives tan delta only for matching bases
+  and convertible Pa/kPa/MPa/GPa units. Zero storage points remain local masked
+  values, and source arrays are not overwritten.
+- Temperature response peaks are explicitly
+  `response_peak_candidate_not_tg`; time/frequency inputs receive no thermal
+  label. Independent instrument/material replay, measurement uncertainty,
+  TTS/master curves, Tg interpretation, and capability promotion remain open.
+- Focused DMA/canonical coverage passes 38; shared ComputeRun/capability
+  coverage passes 70 with 3 skips; structured verification passes quality 313
+  and preprocessing 157.
+- Task: `docs/agent/tasks/2026-09-05-dma-multisignal-derived-core.md`.
+
+## Rheology sample-neutral derived core — implementation complete, review required (2026-09-05)
+
+- `rheology_curve_1d.v1` preserves unambiguous steady-flow, oscillatory,
+  strain, temperature, and time-sweep table signals as separate canonical
+  measurements. English and common rheometer symbols (`γ`, `γ̇`, `ω`, `τ`,
+  `η`, `η*`, `G'`, and `G''`) are recognized without inferring material type.
+- One deterministic processor derives only dimensionally valid steady-flow
+  identities, tan delta, complex-modulus magnitude, and complex-viscosity
+  magnitude. Unit factors, methods, parameters, warnings, and point-validity
+  masks flow through the shared `AnalysisResult`, `ComputeRun`, and metric
+  manifest; source arrays remain distinct and unchanged.
+- Formal rheology descriptors remain unsupported. Real instrument/material
+  replay, uncertainty, yield/thixotropy/LVE/crossover interpretation,
+  creep/relaxation, TTS/master curves, group statistics, project-workflow
+  indexing/adapters, and scientific capability promotion remain open.
+- Focused rheology/canonical coverage passes 42; shared ComputeRun/CLI/AI
+  boundary coverage passes 142 with 3 skips; structured verification passes
+  quality 313 and preprocessing 157. Architecture and scientific-semantics
+  review are required before merge or promotion.
+- Task: `docs/agent/tasks/2026-09-05-rheology-foundation-derived-core.md`.
+
+## Generic project routes for table techniques — implementation complete, review required (2026-09-05)
+
+- TGA, DMA, and rheology now use the existing project single-input,
+  same-technique series, and mixed-technique adapters. Their registered
+  canonical templates execute through the shared Agent/ComputeRun boundary and
+  enter the existing result-table, evidence-package, and ARS-facing objects.
+- Project indexing recognizes explicit technique directory/name tokens and
+  full technique labels with alphanumeric boundaries. It does not infer DMA
+  versus rheology from an unlabelled `G'`/`G''` table, and short strings such as
+  `outgas` or `first` no longer accidentally match `tga` or `ir`.
+- Focused index/adapter/AI-entry coverage passes 59 with 1 platform skip;
+  project service/package/CLI coverage passes 55; unchanged TGA/DMA/rheology
+  Core coverage passes 25; structured verification passes quality 313 and
+  preprocessing 157.
+- Explicit technique confirmation for unlabelled inputs, scientific group
+  confirmation, group statistics/figures, and capability promotion remain
+  open. Architecture review is required before merge.
+- Task: `docs/agent/tasks/2026-09-05-generic-project-table-techniques.md`.
+
+## SEC/GPC sample-neutral chromatogram foundation — implementation complete, review required (2026-09-05)
+
+- Added `sec_chromatogram_1d.v1` and a shared `SECEngine` for canonical table
+  inputs. Explicit retention time/elution volume, RI, UV, MALS/RALS/LALS,
+  viscometer/pressure, concentration, vendor molar-mass/log-molar-mass, and
+  differential/cumulative distribution columns remain separate measurements
+  with source values, units, detector kind, and source mapping preserved.
+- `sec.processing.v1` derives only a recorded global-response peak coordinate
+  and a baseline-uncorrected trapezoid integral. Non-monotonic coordinates make
+  only the integral unavailable; source arrays remain unchanged. `Mn`, `Mw`,
+  `Mz`, and dispersity are explicitly unavailable with
+  `calibration_and_distribution_semantics_required`.
+- `sec` is canonical and `gpc` is an input alias across canonical conversion,
+  ComputeRun, generic curve capabilities, CLI, Batch, project indexing,
+  single/series/mixed adapters, and AI-native project evidence packaging.
+  Formal `sec.molecular_weight.v1` and `sec.distribution.v1` remain unsupported.
+- Focused SEC/canonical coverage passes 34; shared ComputeRun/capability/project
+  coverage passes 134 with 4 skips. Changed-file Ruff, compile, and diff checks
+  pass. The task verifier reaches the repository baseline Ruff scan, which
+  still reports pre-existing style errors in `core/engine.py` when included by
+  the changed-file set. Vendor binary readers, calibration DTOs, uncertainty,
+  independent replay, and capability promotion remain follow-up work.
+- Task: `docs/agent/tasks/2026-09-05-sec-gpc-foundation.md`.
+
+## Mechanics sample-neutral curve foundation — implementation complete, review required (2026-09-05)
+
+- Added `mechanics_curve_1d.v1` and a shared `MechanicsEngine` for common
+  mechanics table exports. Explicit time, displacement, strain, deflection,
+  cycle, stress, force/load, energy, and modulus channels retain source
+  values, units, test-mode provenance, and source locators.
+- `mechanics.processing.v1` derives only recorded global-response peak
+  coordinates and baseline/geometry-uncorrected trapezoid integrals. A
+  non-monotonic coordinate makes only the local integral unavailable; source
+  arrays remain unchanged. Yield, modulus, toughness, fatigue, and creep
+  summaries stay explicitly unavailable without test semantics and geometry.
+- Mechanics is registered across canonical conversion, generic capabilities,
+  direct/prevalidated ComputeRun, CLI, Batch, project index/adapters, and
+  AI-native evidence packaging. Formal `mechanics.*` descriptors remain
+  unsupported and no material model is inferred.
+- Focused mechanics/canonical/project coverage passes 100 with 1 skip; shared
+  ComputeRun/capability/AI boundary coverage passes 118 with 3 skips;
+  architecture and
+  scientific-semantics review, independent replay, uncertainty, and capability
+  promotion remain open. Task:
+  `docs/agent/tasks/2026-09-05-mechanics-foundation.md`.
+
+## Mechanics contract-bound advanced models — implementation complete, review required (2026-09-05)
+
+- Added immutable `MechanicsAnalysisSpec` input semantics for explicit test
+  mode, source measurement IDs, geometry, stress/strain units, modulus window,
+  optional offset yield, and optional `last_valid` toughness endpoint.
+- `mechanics.processing.v1` now computes only when that spec is present and
+  valid: stress-strain linear modulus, offset-line yield candidate, and
+  stress-strain trapezoid toughness. Each value retains source measurement IDs,
+  method, units, parameters, and local unavailable reasons; vendor modulus is
+  not reused as a fitted result.
+- Canonical payloads carry the spec through `MechanicsEngine` and shared
+  ComputeRun. Absent or incomplete semantics leave the descriptive foundation
+  calculable and advanced properties locally unavailable. Fatigue, fracture,
+  creep, uncertainty, independent replay, and formal capability promotion stay
+  open and require scientific review.
+- Focused mechanics/canonical/ComputeRun coverage passes 143 with 3 skips;
+  changed mechanics files pass Ruff and compile checks. Task:
+  `docs/agent/tasks/2026-09-05-mechanics-advanced-models.md`.
+
+## Mechanics replay and uncertainty foundation — implementation complete, review required (2026-09-05)
+
+- `MechanicsAnalysisSpec` now accepts optional explicit stress/strain standard
+  deviations. The processor emits first-order linearized diagnostic standard
+  deviations for fitted modulus, offset-yield values, and last-valid toughness;
+  no uncertainty inputs leave the shared projection unchanged.
+- Added serialized `MechanicsReplayCase` and `MechanicsReplayReport`. A case
+  binds canonical-style axes/signals/spec, an external reference kind, expected
+  scalar values, tolerances, and a content hash. Replay round-trips are
+  deterministic and mismatches remain validation reports rather than run or
+  evidence mutations.
+- Uncertainty flows through `MechanicsEngine` metadata into shared
+  `ComputeResult.uncertainty` and metric manifests. Formal metrology,
+  instrument repeatability, standard-sample validation, independent lab replay,
+  and capability promotion remain open and human scientific-review required.
+- Mechanics/replay coverage passes 15; shared ComputeRun/capability/project/AI
+  coverage passes 118 with 3 skips. Task:
+  `docs/agent/tasks/2026-09-05-mechanics-validation-foundation.md`.
+
+## Public validation archive acquisition completion — 2026-09-06
+
+The external public validation pack at `D:\PolyNexus-validation-data` now
+contains all 12 planned archives. The previously incomplete DSC archive and
+second SAXS archive were downloaded with resumable transfers, matched the
+Zenodo-published MD5 values, and passed ZIP member inspection. The external
+lock manifest reports 12 `inspected` entries and
+`validate --require-local` passes. The source manifest keeps `candidate`
+status because acquisition is not formal replay, uncertainty, or capability
+promotion evidence. No raw data was added to Git.
+
+## Public validation routes across all modules — completed, review required (2026-09-06)
+
+- Ran the selected public-pack inputs through the current CLI/Core routes and
+  corrected the external report at
+  `D:/PolyNexus-validation-data/public/runs/2026-09-06-all-modules/all-modules-report.json`.
+- IR, SAXS, WAXS, and NMR produced diagnostic output. WAXS uses a derived
+  header-normalized CSV and retains the original `.dat` mapping-ambiguity
+  attempt plus derivation provenance. SAXS/WAXS are non-polymer datasets and
+  cannot support polymer scientific claims; NMR has an implausible observed
+  ppm axis and quality/assignment warnings.
+- DSC, TGA, DMA, SEC/GPC, and Mechanics are recorded as unavailable for the
+  selected inputs. DSC loaded zero points; TGA/DMA are unsupported vendor
+  binaries; SEC/GPC has only an Origin `.opju`; Mechanics selection is
+  ellipsometry rather than a mechanics curve. Rheology had no suitable public
+  raw/instrument export and was not attempted.
+- Validation manifest check passed (`12` entries), and focused tests passed
+  (`6 passed`). This remains parser/Core smoke evidence only; independent
+  replay, standards, uncertainty, and capability promotion remain open.
+- Task: `docs/agent/tasks/2026-09-06-public-validation-all-modules.md`.
+
+## TA Q800 DMA reader route — implementation complete, review required (2026-09-07)
+
+- Added a bounded native reader for the verified TA Q800 binary signature and
+  routed it into the shared DMA canonical template and ComputeRun path.
+- Preserves all mapped `SigN` channels, units, source locators, header
+  metadata, reader offset, and excluded unknown signals; malformed or
+  incomplete files fail closed before provider execution.
+- Focused matrix passes 119 with 3 skips. Structured verification passes
+  quality 313 and preprocessing 157. One public Q800 file replayed with 17
+  decoded signals, 1041 valid rows, 9 canonical measurements, and a completed
+  ComputeRun. Formal DMA scientific validation, uncertainty, alternate vendor
+  formats, and capability promotion remain open.
+- Task: `docs/agent/tasks/2026-09-07-ta-dma-reader-route.md`.
+
+## ODS table reader route — implementation complete, review required (2026-09-07)
+
+- Added `ods_reader.py` with bounded ZIP/XML parsing, repeated-cell expansion,
+  unsafe-path checks, and no formula/macro execution.
+- ODS sheets now use the same generic one-dimensional conversion and shared
+  ComputeRun path; no alternate table or provenance store was introduced.
+- Focused matrix passes 122 with 3 skips; private Netzsch/Origin formats still
+  require official export bridges or independently validated readers.
+- Task: `docs/agent/tasks/2026-09-07-ods-reader-route.md`.
+## Portable vendor-export binding — implementation complete, review required (2026-09-07)
+
+- Added hash-bound raw/export provenance for explicit Proteus/Origin/vendor
+  portable table exports.
+- The binding route reuses CanonicalExperiment and ComputeRun; it never treats
+  an exported table as the original private binary or changes source identity.
+- Focused matrix passes 66 with 4 skips. Direct conversion remains unchanged.
+- Task: `docs/agent/tasks/2026-09-07-portable-export-binding.md`.
+## Cross-technique validation harness v1 — implementation complete, review required (2026-09-09)
+
+- Added technique-neutral `ValidationCase`, `ValidationExpectation`, and
+  `ValidationReport` contracts in `polynexus/core/validation_harness.py`.
+- The runner executes a public calculator twice, compares deterministic output
+  hashes, scalar/series expectations with absolute/relative tolerances, metric
+  status, units, methods, parameters, provenance, and optional raw-file hash
+  preservation. It accepts canonical dataset binding and optional standard or
+  negative-control metadata.
+- Failures remain immutable report observations and never mutate ComputeRun or
+  Evidence Package state. No capability promotion, uncertainty claim, or
+  scientific conclusion is produced.
+- Focused coverage passes 7 tests (including actual TGA and rheology adapter
+  smoke replays); task-level verifier passes quality 313 and
+  preprocessing 157, with Ruff, compile, and whitespace checks green. Existing TGA/mechanics replay DTOs remain intact and real instrument
+  replay, uncertainty, and human scientific review are still required.
+- Task: `docs/agent/tasks/2026-09-09-cross-technique-validation-harness-v1.md`.
+
+The CLI now exposes `polynexus validate compare --case ... --first-output ...
+--second-output ... --json`, which compares persisted public projections via
+the same runner without importing arbitrary Python code. Focused coverage is
+10 tests including parser/CLI behavior.
+Project-level aggregation is now available through `ProjectValidationEntry`,
+`ProjectValidationBatch`, and `polynexus project-validate --project-root ...
+--manifest ...`. Entries are replayed in stable case-ID order, failures remain
+per-case, and the aggregate report is persisted only under
+`.polynexus/validation/latest.json`. Focused project validation coverage is 4
+tests; no Evidence Package or capability state is changed.
+
+Agent/Codex can now invoke `agent-workflow validate-project --project-root ...
+--manifest ...`; it uses the same project batch runner and persists the same
+`.polynexus/validation/latest.json` report. Existing Agent run/validate/export
+operations remain unchanged. Focused Agent integration coverage is 12 tests.
+
+## Public validation replay integration — implementation complete, review required (2026-09-11)
+
+- Added `PublicReplayCase` and a safe external archive/member replay adapter.
+  Archive/member/extracted content hashes, explicit source format, canonical
+  dataset admission, and expected run status are validated before outputs are
+  accepted. ZIP traversal, symlink, size, missing member, and path-boundary
+  failures close before provider execution.
+- `polynexus public-validate` replays cases twice through the existing
+  `ComputeRunService`, projects results into `ProjectValidationEntry`, and
+  optionally writes the shared batch report under project `.polynexus`.
+- External `public-replay-v1.json` covers IR, SAXS, NMR, and observed Netzsch
+  DSC/TGA completed diagnostic routes. Real five-case mixed replay passed twice
+  per case; no raw archive was added to Git.
+- Focused coverage: 20 tests across public replay, CLI, project validation,
+  and shared harness; Ruff and compile checks pass. Formal standards,
+  independent instrument/material replay, uncertainty, capability promotion,
+  and human scientific review remain open.
+- Task: `docs/agent/tasks/2026-09-09-public-validation-replay-integration-v1.md`.
+
+## Observed Netzsch NGB reader routes — implementation complete, review required (2026-09-11)
+
+- Added a bounded native reader for the verified public Proteus DSC
+  `.ngb-sd7` ZIP/stream layout and TGA `.ngb-ds1` `CDbTable` layout. Both
+  route through the existing `FormatInspection`, `CanonicalExperiment`, and
+  shared `ComputeRun` contracts; GUI consumers inherit the same result shape.
+- Reader/converter provenance retains source labels, units, block offsets,
+  reader version, segment identifiers, and unassigned channels. DSC source
+  heat flow is already `mW/mg`, so no sample mass is invented. TGA requires a
+  declared `TG /mg` label and retains its channel as
+  `instrument_reported_TG_channel`, explicitly not an absolute-mass result.
+- The external five-case replay manifest now records both DSC and TGA as
+  `completed`: each passed two hash-identical replays, preserved raw hashes,
+  and retained their canonical dataset/template identities. No raw archive was
+  added to Git.
+- This supports only observed layouts. Other NGB layouts, calibration and
+  sample-mass validation, uncertainty, standards/negative controls, and
+  capability promotion remain review-required. Task:
+  `docs/agent/tasks/2026-09-11-netzsch-ngb-reader-route.md`.
+## SEC/GPC figure/export closure — implementation complete, review required (2026-09-13)
+
+Added `polynexus/core/sec_figures.py` and wired `SECEngine` to the shared
+FigureDefinition contract. Uncalibrated runs publish a chromatogram;
+calibrated runs publish diagnostic MWD, calibration curve, and Mn/Mw/Mz/Đ
+summary sources. Existing snapshots and V2 sidecars provide reusable
+CSV/SVG/PNG/PDF and Origin-compatible semantic data. The summary export uses
+long-form metric path/name/value/unit/method columns, so dimensionless Đ is not
+mislabelled as molar mass; recipes retain the exact Metric Manifest bindings,
+method parameters, group identity, and calibration provenance. Focused SEC
+coverage passes 11; structured verification passes quality 313 plus
+preprocessing 157. Scientific calibration validity, standards, uncertainty,
+vendor calibration readers, and capability promotion remain outside this task.
+## Advanced model suite — TGA kinetics phase 1 active (2026-09-13)
+
+Added `TGAKineticsSpec` and a deterministic diagnostic Kissinger multi-rate
+candidate in `tga_processing.py`, including explicit rates/conversion levels,
+local unavailable results, and ComputeRun `tga_kinetics` template binding.
+Focused tests and syntax/Ruff checks pass. DMA, rheology, and mechanics advanced
+models remain pending under the umbrella task:
+`docs/agent/tasks/2026-09-13-advanced-models-complete-suite.md`.
+## Advanced model suite — DMA/rheology/mechanics diagnostic primitives (2026-09-13)
+
+Added explicit DMA `DMATTSSpec` and horizontal shift master-curve candidate;
+rheology `RheologyAdvancedSpec`, Cox–Merz pointwise comparison, and thixotropy
+area candidate; mechanics cycle envelope, fatigue history, creep work, and
+fracture force-displacement candidates. Focused tests pass (DMA/rheology 8,
+mechanics 2). These primitives still need canonical engine wiring, shared
+metric-manifest projection, and CLI/Agent exposure under the umbrella task:
+`docs/agent/tasks/2026-09-13-advanced-models-complete-suite.md`.
+## Advanced model shared ComputeRun bindings — 2026-09-13
+
+`ComputeRunService` now accepts and hash-binds `tga_kinetics`, `dma_tts`, and
+`mechanics_analysis` mappings alongside existing rheology/SEC specs. Technique
+mismatches and invalid specs fail as `needs_input` before provider execution;
+canonical templates are rehashed with the explicit mapping. Focused advanced
+model tests remain green (10 passed). Provider metric projection and full
+cross-entry model execution are still pending under the umbrella task.

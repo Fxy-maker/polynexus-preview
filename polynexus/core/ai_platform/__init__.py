@@ -8,7 +8,9 @@ from .contracts import (
     DataBlock,
     MissingnessPolicy,
     ProviderResultInput,
+    UncertaintyComponent,
     UncertaintyRef,
+    UncertaintySummary,
     axis_allows_quantitative,
     canonical_json_hash,
 )
@@ -41,6 +43,8 @@ __all__ = [
     "AxisProvenance",
     "CalibrationRef",
     "UncertaintyRef",
+    "UncertaintyComponent",
+    "UncertaintySummary",
     "MissingnessPolicy",
     "ComputationState",
     "ProviderResultInput",

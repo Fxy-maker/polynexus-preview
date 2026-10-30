@@ -1,6 +1,7 @@
 """Test bootstrap helpers for PySide6 import stability."""
 
 import logging
+import gc
 from dataclasses import replace
 
 # Preload the scientific stack before any test imports PySide6.
@@ -61,6 +62,11 @@ def cleanup_chart_editor_test_windows():
         widget._set_editor_dirty(False)
         widget.close()
         widget.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    app.processEvents()
+    # Matplotlib callbacks and scene wrappers form Python reference cycles.
+    # Release them between tests, rather than during the next Qt constructor.
+    gc.collect()
     QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
     app.processEvents()
 

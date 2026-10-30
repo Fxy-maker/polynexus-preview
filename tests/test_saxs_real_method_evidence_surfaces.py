@@ -14,10 +14,15 @@ from polynexus.core.saxs_export_bundle import export_saxs_bundle
 def _real_saxs_modes() -> tuple[tuple[str, Path], ...]:
     repository_root = Path(__file__).resolve().parents[1]
     data_root = next(
-        (candidate / "saxs")
-        for candidate in repository_root.iterdir()
-        if candidate.is_dir() and (candidate / "saxs").is_dir()
+        (
+            candidate / "saxs"
+            for candidate in repository_root.iterdir()
+            if candidate.is_dir() and (candidate / "saxs").is_dir()
+        ),
+        None,
     )
+    if data_root is None:
+        return ()
     static = next(data_root.rglob("8-000-s_0_00000_with_mask.edf"), None)
     temperature_frame = next(data_root.rglob("PA6-250-170-S_0_00000.edf"), None)
     strain_frame = next(data_root.rglob("8-000-s_0_00000_with_mask.edf"), None)

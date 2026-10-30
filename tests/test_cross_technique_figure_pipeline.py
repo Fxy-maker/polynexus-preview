@@ -18,12 +18,14 @@ def test_ir_and_saxs_runs_publish_uniform_paper_complete_projects(tmp_path):
     ir_manifest = pipeline.run(
         output_root=tmp_path,
         run_id="ir-uniform",
+        profile_id="paper_complete",
         technique="ir",
         definitions=_ir_definitions(),
     )
     saxs_manifest = pipeline.run(
         output_root=tmp_path,
         run_id="saxs-uniform",
+        profile_id="paper_complete",
         technique="saxs",
         definitions=_saxs_definitions(),
     )

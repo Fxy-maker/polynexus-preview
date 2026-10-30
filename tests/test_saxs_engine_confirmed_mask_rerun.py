@@ -135,7 +135,7 @@ def test_one_dimensional_preprocess_does_not_use_candidate(monkeypatch) -> None:
     assert engine.preprocess() is True
 
 
-def test_analysis_worker_forwards_candidate_only_when_supplied() -> None:
+def test_analysis_worker_forwards_candidate_only_when_supplied(tmp_path) -> None:
     calls: list[dict[str, object]] = []
 
     class FakeEngine:
@@ -151,10 +151,12 @@ def test_analysis_worker_forwards_candidate_only_when_supplied() -> None:
             return object()
 
     candidate = _candidate()
+    source = tmp_path / "sample.csv"
+    source.write_text("q_nm1,intensity\n0.1,2\n0.2,1\n0.3,0.5\n", encoding="utf-8")
     worker = AnalysisWorker(
         "saxs",
-        "sample.edf",
-        "out",
+        str(source),
+        str(tmp_path / "out"),
         engine=FakeEngine(),
         mask_edit_candidate=candidate,
     )
@@ -163,8 +165,8 @@ def test_analysis_worker_forwards_candidate_only_when_supplied() -> None:
 
     assert calls == [
         {
-            "filepath": "sample.edf",
-            "output_dir": "out",
+            "filepath": str(source),
+            "output_dir": str(tmp_path / "out"),
             "skip_to": None,
             "mask_edit_candidate": candidate,
         }

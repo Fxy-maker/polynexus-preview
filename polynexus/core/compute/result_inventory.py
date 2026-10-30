@@ -17,6 +17,8 @@ class ResultField:
     present: bool = True
     value: Any = None
     item_count: int | None = None
+    diagnostic_status: str | None = None
+    unavailable_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -28,6 +30,11 @@ class ResultField:
             payload["value"] = self.value
         if self.kind == "series" and self.present:
             payload["item_count"] = self.item_count or 0
+        if self.kind == "diagnostic" and self.present:
+            if self.diagnostic_status is not None:
+                payload["status"] = self.diagnostic_status
+            if self.unavailable_reason is not None:
+                payload["unavailable_reason"] = self.unavailable_reason
         return payload
 
 
@@ -55,6 +62,25 @@ def build_result_field_inventory(
         if isinstance(value, Mapping):
             if not value:
                 fields[path] = ResultField(path=path, kind="object")
+                return
+            # Provider diagnostics use a small object envelope such as
+            # ``{"status": "unavailable", "unavailable_reason": ...}``.
+            # Keep that envelope as one field.  Flattening it would expose
+            # ``status`` and the reason as if they were scientific metrics,
+            # and can make an unavailable parent look computed downstream.
+            diagnostic_status = value.get("status")
+            reason = value.get("unavailable_reason")
+            if (
+                str(diagnostic_status).strip().lower() == "unavailable"
+                and reason is not None
+                and str(reason).strip()
+            ):
+                fields[path] = ResultField(
+                    path=path,
+                    kind="diagnostic",
+                    diagnostic_status="unavailable",
+                    unavailable_reason=str(reason),
+                )
                 return
             for key, child in value.items():
                 key_text = str(key).strip()

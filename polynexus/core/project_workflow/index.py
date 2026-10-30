@@ -13,13 +13,30 @@ from .workspace import ProjectWorkspace
 
 
 _TECHNIQUE_ALIASES = (
+    ("size exclusion chromatography", "sec"),
+    ("gel permeation chromatography", "sec"),
+    ("thermogravimetric analysis", "tga"),
+    ("thermogravimetric", "tga"),
+    ("dynamic mechanical analysis", "dma"),
+    ("dynamic mechanical", "dma"),
+    ("mechanical testing", "mechanics"),
+    ("mechanics", "mechanics"),
+    ("tensile test", "mechanics"),
+    ("compression test", "mechanics"),
+    ("flexural test", "mechanics"),
+    ("rheometer", "rheology"),
+    ("rheology", "rheology"),
     ("ftir", "ir"),
     ("infrared", "ir"),
     ("ir", "ir"),
     ("dsc", "dsc"),
+    ("tga", "tga"),
+    ("dma", "dma"),
     ("waxs", "waxs"),
     ("saxs", "saxs"),
     ("nmr", "nmr"),
+    ("gpc", "sec"),
+    ("sec", "sec"),
 )
 _RAW_TEMPERATURE_PATTERN = re.compile(
     r"(?:method_)?temperature(?:_c)?\s*[:=]\s*(-?\d+(?:\.\d+)?)",
@@ -136,7 +153,10 @@ class ProjectIndexer:
         )
         label = " ".join(part.lower() for part in parts[raw_index:])
         for marker, technique in _TECHNIQUE_ALIASES:
-            if marker in label:
+            if re.search(
+                rf"(?<![a-z0-9]){re.escape(marker)}(?![a-z0-9])",
+                label,
+            ):
                 return technique
         if source.is_file() and source.suffix.lower() in {".txt", ".dat", ".asc"}:
             try:

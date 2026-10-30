@@ -11,6 +11,14 @@ from typing import Any, Mapping, Sequence
 
 
 def _json_safe(value: Any) -> Any:
+    # Shared DTOs (including uncertainty summaries) may be nested inside
+    # projection mappings.  Serialize them before applying the strict JSON
+    # value checks so ComputeResult/ProviderResultInput can share one shape.
+    if (
+        type(value).__module__ == __name__
+        and type(value).__name__ in {"UncertaintyComponent", "UncertaintySummary"}
+    ):
+        return _json_safe(value.to_dict())
     if value is None or isinstance(value, (str, int, bool)):
         return value
     if isinstance(value, float):
@@ -252,6 +260,290 @@ class UncertaintyRef:
         if not isinstance(value, Mapping):
             raise TypeError("Uncertainty reference must be a mapping")
         return cls.create(value["kind"], value.get("value_ref"), value.get("inline"), value.get("summary"))
+
+
+@dataclass(frozen=True)
+class UncertaintyComponent:
+    """One explicitly supplied contribution to a metric's measurement error.
+
+    This is an evidence record, not a claim that a provider has a complete
+    metrology model.  ``value_kind`` makes the conversion to standard
+    uncertainty explicit; an expanded value therefore requires its own
+    coverage factor.
+    """
+
+    kind: str
+    value: float
+    unit: str | None = None
+    value_kind: str = "standard_uncertainty"
+    method: str = ""
+    input_metric_paths: tuple[str, ...] = ()
+    source: Mapping[str, Any] = field(default_factory=dict)
+    coverage_factor: float | None = None
+    degrees_of_freedom: float | None = None
+    schema_version: str = "1"
+
+    KINDS = frozenset({"repeatability", "resolution", "baseline", "calibration", "fit", "other"})
+    VALUE_KINDS = frozenset({"standard_deviation", "standard_uncertainty", "expanded_uncertainty"})
+    SCHEMA_VERSION = "1"
+
+    def __post_init__(self) -> None:
+        if self.schema_version != self.SCHEMA_VERSION:
+            raise ValueError("Unsupported uncertainty component schema version")
+        kind = str(self.kind).strip().casefold()
+        if kind not in self.KINDS:
+            raise ValueError(f"Unsupported uncertainty component kind: {self.kind}")
+        if isinstance(self.value, bool):
+            raise TypeError("Uncertainty component value must be numeric")
+        value = float(self.value)
+        if not math.isfinite(value) or value < 0.0:
+            raise ValueError("Uncertainty component value must be finite and nonnegative")
+        value_kind = str(self.value_kind).strip().casefold()
+        if value_kind not in self.VALUE_KINDS:
+            raise ValueError(f"Unsupported uncertainty value kind: {self.value_kind}")
+        unit = None if self.unit is None else str(self.unit).strip()
+        if unit == "":
+            raise ValueError("Uncertainty component unit must be nonempty or null")
+        method = str(self.method).strip()
+        paths = _dedupe(self.input_metric_paths, "uncertainty input_metric_paths")
+        source = self.source
+        if not isinstance(source, Mapping):
+            raise TypeError("Uncertainty component source must be a mapping")
+        coverage = self.coverage_factor
+        if coverage is not None:
+            coverage = float(coverage)
+            if not math.isfinite(coverage) or coverage <= 0.0:
+                raise ValueError("Uncertainty component coverage_factor must be positive")
+        dof = self.degrees_of_freedom
+        if dof is not None:
+            dof = float(dof)
+            if not math.isfinite(dof) or dof <= 0.0:
+                raise ValueError("Uncertainty component degrees_of_freedom must be positive")
+        if value_kind == "expanded_uncertainty" and coverage is None:
+            raise ValueError("Expanded uncertainty components require a coverage_factor")
+        object.__setattr__(self, "kind", kind)
+        object.__setattr__(self, "value", value)
+        object.__setattr__(self, "unit", unit)
+        object.__setattr__(self, "value_kind", value_kind)
+        object.__setattr__(self, "method", method)
+        object.__setattr__(self, "input_metric_paths", paths)
+        object.__setattr__(self, "source", _freeze(source))
+        object.__setattr__(self, "coverage_factor", coverage)
+        object.__setattr__(self, "degrees_of_freedom", dof)
+
+    @classmethod
+    def create(
+        cls,
+        kind: str,
+        value: float,
+        *,
+        unit: str | None = None,
+        value_kind: str = "standard_uncertainty",
+        method: str = "",
+        input_metric_paths: Sequence[str] = (),
+        source: Mapping[str, Any] | None = None,
+        coverage_factor: float | None = None,
+        degrees_of_freedom: float | None = None,
+    ) -> "UncertaintyComponent":
+        return cls(kind, value, unit, value_kind, method, tuple(input_metric_paths),
+                   {} if source is None else source, coverage_factor,
+                   degrees_of_freedom)
+
+    def standard_uncertainty(self) -> float:
+        if self.value_kind in {"standard_deviation", "standard_uncertainty"}:
+            return self.value
+        assert self.coverage_factor is not None
+        return self.value / self.coverage_factor
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "kind": self.kind,
+            "value": self.value,
+            "unit": self.unit,
+            "value_kind": self.value_kind,
+            "method": self.method,
+            "input_metric_paths": list(self.input_metric_paths),
+            "source": _public(self.source),
+            "coverage_factor": self.coverage_factor,
+            "degrees_of_freedom": self.degrees_of_freedom,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "UncertaintyComponent":
+        if not isinstance(value, Mapping):
+            raise TypeError("Uncertainty component must be a mapping")
+        return cls(
+            kind=value["kind"], value=value["value"], unit=value.get("unit"),
+            value_kind=value.get("value_kind", "standard_uncertainty"),
+            method=value.get("method", ""),
+            input_metric_paths=tuple(value.get("input_metric_paths", ())),
+            source=value.get("source", {}),
+            coverage_factor=value.get("coverage_factor"),
+            degrees_of_freedom=value.get("degrees_of_freedom"),
+            schema_version=value.get("schema_version", ""),
+        )
+
+
+@dataclass(frozen=True)
+class UncertaintySummary:
+    """Diagnostic uncertainty projection attached to one metric path."""
+
+    metric_path: str
+    unit: str | None = None
+    components: tuple[UncertaintyComponent, ...] = ()
+    standard_uncertainty: float | None = None
+    expanded_uncertainty: float | None = None
+    coverage_factor: float | None = None
+    confidence_level: float | None = None
+    method: str = "rss"
+    status: str = "available"
+    reason_codes: tuple[str, ...] = ()
+    schema_version: str = "1"
+    summary_hash: str = field(default="", compare=True)
+
+    STATUSES = frozenset({"available", "unavailable"})
+    SCHEMA_VERSION = "1"
+
+    def __post_init__(self) -> None:
+        if self.schema_version != self.SCHEMA_VERSION:
+            raise ValueError("Unsupported uncertainty summary schema version")
+        metric_path = str(self.metric_path).strip()
+        if not metric_path or any(not part or part != part.strip() for part in metric_path.split(".")):
+            raise ValueError("Uncertainty summary metric_path must be a nonempty dotted path")
+        status = str(self.status).strip().casefold()
+        if status not in self.STATUSES:
+            raise ValueError(f"Unsupported uncertainty summary status: {self.status}")
+        components = tuple(
+            item if type(item) is UncertaintyComponent else UncertaintyComponent.from_dict(item)
+            if isinstance(item, Mapping) else item
+            for item in self.components
+        )
+        if not all(type(item) is UncertaintyComponent for item in components):
+            raise TypeError("Uncertainty summary components must use UncertaintyComponent")
+        unit = None if self.unit is None else str(self.unit).strip()
+        if unit == "":
+            raise ValueError("Uncertainty summary unit must be nonempty or null")
+        component_units = {item.unit for item in components if item.unit is not None}
+        if len(component_units) > 1:
+            raise ValueError("Uncertainty summary components must use one compatible unit")
+        if unit is not None and any(item.unit not in {None, unit} for item in components):
+            raise ValueError("Uncertainty summary unit does not match component units")
+        standard = self.standard_uncertainty
+        expanded = self.expanded_uncertainty
+        coverage = self.coverage_factor
+        confidence = self.confidence_level
+        if status == "available":
+            if not components:
+                raise ValueError("Available uncertainty summary requires components")
+            derived_standard = math.sqrt(sum(item.standard_uncertainty() ** 2 for item in components))
+            if standard is None:
+                standard = derived_standard
+            elif not math.isclose(float(standard), derived_standard, rel_tol=1e-12, abs_tol=1e-15):
+                raise ValueError("standard_uncertainty does not match component RSS")
+            if isinstance(standard, bool) or not math.isfinite(float(standard)) or float(standard) < 0.0:
+                raise ValueError("standard_uncertainty must be finite and nonnegative")
+            if not str(self.method).strip():
+                raise ValueError("Available uncertainty summary requires a method")
+        else:
+            if components or standard is not None or expanded is not None:
+                raise ValueError("Unavailable uncertainty summary cannot carry values")
+        if coverage is not None:
+            coverage = float(coverage)
+            if not math.isfinite(coverage) or coverage <= 0.0:
+                raise ValueError("coverage_factor must be positive")
+        if expanded is not None:
+            expanded = float(expanded)
+            if not math.isfinite(expanded) or expanded < 0.0:
+                raise ValueError("expanded_uncertainty must be finite and nonnegative")
+            if status == "available" and coverage is not None and not math.isclose(
+                expanded, float(standard) * coverage, rel_tol=1e-12, abs_tol=1e-15
+            ):
+                raise ValueError("expanded_uncertainty does not match coverage_factor")
+        elif status == "available" and coverage is not None:
+            expanded = float(standard) * coverage
+        if confidence is not None:
+            confidence = float(confidence)
+            if not math.isfinite(confidence) or not 0.0 < confidence < 1.0:
+                raise ValueError("confidence_level must be between 0 and 1")
+        reasons = _dedupe(self.reason_codes, "uncertainty reason_codes")
+        if status == "unavailable" and not reasons:
+            raise ValueError("Unavailable uncertainty summary requires a reason code")
+        object.__setattr__(self, "metric_path", metric_path)
+        object.__setattr__(self, "status", status)
+        object.__setattr__(self, "components", components)
+        object.__setattr__(self, "unit", unit)
+        object.__setattr__(self, "standard_uncertainty", None if standard is None else float(standard))
+        object.__setattr__(self, "expanded_uncertainty", expanded)
+        object.__setattr__(self, "coverage_factor", coverage)
+        object.__setattr__(self, "confidence_level", confidence)
+        object.__setattr__(self, "method", str(self.method).strip())
+        object.__setattr__(self, "reason_codes", reasons)
+        expected_hash = canonical_json_hash(self._identity_payload())
+        if self.summary_hash and self.summary_hash != expected_hash:
+            raise ValueError("Uncertainty summary hash does not match content")
+        object.__setattr__(self, "summary_hash", expected_hash)
+
+    @classmethod
+    def create(
+        cls,
+        metric_path: str,
+        *,
+        unit: str | None = None,
+        components: Sequence[UncertaintyComponent | Mapping[str, Any]] = (),
+        standard_uncertainty: float | None = None,
+        expanded_uncertainty: float | None = None,
+        coverage_factor: float | None = None,
+        confidence_level: float | None = None,
+        method: str = "rss",
+        status: str | None = None,
+        reason_codes: Sequence[str] = (),
+    ) -> "UncertaintySummary":
+        normalized = tuple(
+            item if type(item) is UncertaintyComponent else UncertaintyComponent.from_dict(item)
+            for item in components
+        )
+        resolved_status = status or ("available" if normalized else "unavailable")
+        return cls(metric_path, unit, normalized, standard_uncertainty,
+                   expanded_uncertainty, coverage_factor, confidence_level,
+                   method, resolved_status, tuple(reason_codes))
+
+    @classmethod
+    def unavailable(cls, metric_path: str, *reason_codes: str, unit: str | None = None) -> "UncertaintySummary":
+        return cls.create(metric_path, unit=unit, status="unavailable", reason_codes=reason_codes or ("evidence_missing",))
+
+    def _identity_payload(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "metric_path": self.metric_path,
+            "unit": self.unit,
+            "components": [item.to_dict() for item in self.components],
+            "standard_uncertainty": self.standard_uncertainty,
+            "expanded_uncertainty": self.expanded_uncertainty,
+            "coverage_factor": self.coverage_factor,
+            "confidence_level": self.confidence_level,
+            "method": self.method,
+            "status": self.status,
+            "reason_codes": list(self.reason_codes),
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {**self._identity_payload(), "summary_hash": self.summary_hash}
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "UncertaintySummary":
+        if not isinstance(value, Mapping):
+            raise TypeError("Uncertainty summary must be a mapping")
+        return cls(
+            metric_path=value.get("metric_path", ""), unit=value.get("unit"),
+            components=tuple(UncertaintyComponent.from_dict(item) for item in value.get("components", ())),
+            standard_uncertainty=value.get("standard_uncertainty"),
+            expanded_uncertainty=value.get("expanded_uncertainty"),
+            coverage_factor=value.get("coverage_factor"),
+            confidence_level=value.get("confidence_level"), method=value.get("method", ""),
+            status=value.get("status", ""), reason_codes=tuple(value.get("reason_codes", ())),
+            schema_version=value.get("schema_version", ""), summary_hash=value.get("summary_hash", ""),
+        )
 
 
 @dataclass(frozen=True)
@@ -909,6 +1201,8 @@ __all__ = [
     "AxisProvenance",
     "CalibrationRef",
     "UncertaintyRef",
+    "UncertaintyComponent",
+    "UncertaintySummary",
     "MissingnessPolicy",
     "ComputationState",
     "ProviderResultInput",

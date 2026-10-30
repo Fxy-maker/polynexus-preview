@@ -18,6 +18,12 @@ METHOD_SENSITIVITY_DIMENSIONS: dict[str, tuple[str, ...]] = {
     "saxs": ("background", "fit_model", "integration_window"),
     "waxs": ("background", "peak_decomposition", "crystallinity"),
     "nmr": ("baseline", "peak_fit", "region_integration"),
+    "tga": (
+        "dtg_window",
+        "dtg_polynomial_order",
+        "event_prominence",
+        "event_minimum_mass_loss",
+    ),
 }
 
 
